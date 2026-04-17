@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 80" width="280" height="80">
+  <defs>
+    <linearGradient id="frBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#075E54"/>
+      <stop offset="50%" stop-color="#0091EA"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="frHex" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#075E54"/>
+      <stop offset="60%" stop-color="#0091EA"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="frGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#34D399"/>
+      <stop offset="100%" stop-color="#818CF8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Hexagonal brain icon -->
+  <g transform="translate(8, 4)">
+    <!-- Outer hexagon -->
+    <polygon points="34,2 60,18 60,50 34,66 8,50 8,18"
+      fill="url(#frHex)" stroke="none"/>
+    <!-- Inner hexagon ring -->
+    <polygon points="34,8 54,21 54,47 34,60 14,47 14,21"
+      fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+
+    <!-- Neural network nodes + connections -->
+    <g stroke="rgba(255,255,255,0.45)" stroke-width="0.9" fill="none">
+      <!-- Layer 1 (left) -->
+      <line x1="18" y1="24" x2="30" y2="20"/>
+      <line x1="18" y1="34" x2="30" y2="30"/>
+      <line x1="18" y1="44" x2="30" y2="40"/>
+      <line x1="18" y1="24" x2="30" y2="30"/>
+      <line x1="18" y1="34" x2="30" y2="40"/>
+      <line x1="18" y1="44" x2="30" y2="30"/>
+      <!-- Layer 2 (middle) -->
+      <line x1="30" y1="20" x2="42" y2="26"/>
+      <line x1="30" y1="30" x2="42" y2="26"/>
+      <line x1="30" y1="30" x2="42" y2="42"/>
+      <line x1="30" y1="40" x2="42" y2="42"/>
+      <line x1="30" y1="40" x2="42" y2="26"/>
+      <line x1="30" y1="20" x2="42" y2="42"/>
+      <!-- Layer 3 (right) -->
+      <line x1="42" y1="26" x2="52" y2="34"/>
+      <line x1="42" y1="42" x2="52" y2="34"/>
+    </g>
+
+    <!-- Neural nodes -->
+    <g>
+      <!-- Input layer -->
+      <circle cx="18" cy="24" r="3" fill="rgba(255,255,255,0.9)"/>
+      <circle cx="18" cy="34" r="3" fill="rgba(255,255,255,0.9)"/>
+      <circle cx="18" cy="44" r="3" fill="rgba(255,255,255,0.9)"/>
+      <!-- Hidden layer -->
+      <circle cx="30" cy="20" r="3.2" fill="white"/>
+      <circle cx="30" cy="30" r="3.2" fill="white"/>
+      <circle cx="30" cy="40" r="3.2" fill="white"/>
+      <!-- Hidden layer 2 -->
+      <circle cx="42" cy="26" r="3.5" fill="white"/>
+      <circle cx="42" cy="42" r="3.5" fill="white"/>
+      <!-- Output -->
+      <circle cx="52" cy="34" r="4" fill="white" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+      <!-- Output pulse ring -->
+      <circle cx="52" cy="34" r="6" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.8">
+        <animate attributeName="r" values="5;8;5" dur="2.5s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2.5s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+
+    <!-- Code brackets at corners -->
+    <text x="11" y="17" fill="rgba(255,255,255,0.4)" font-size="7" font-weight="700" font-family="monospace">&lt;</text>
+    <text x="52" y="58" fill="rgba(255,255,255,0.4)" font-size="7" font-weight="700" font-family="monospace">/&gt;</text>
+  </g>
+
+  <!-- FRAKA wordmark -->
+  <text x="78" y="48" fill="url(#frBg)" font-size="40" font-weight="900"
+    font-family="'SF Pro Display', 'Inter', 'Segoe UI', Arial, sans-serif"
+    letter-spacing="4">FRAKA</text>
+
+  <!-- Accent bar -->
+  <rect x="78" y="52" width="50" height="2" rx="1" fill="url(#frGlow)" opacity="0.7"/>
+
+  <!-- Tagline -->
+  <text x="80" y="67" fill="#6B7280" font-size="10" font-weight="600"
+    font-family="'SF Pro Text', 'Inter', 'Segoe UI', Arial, sans-serif"
+    letter-spacing="2">AI SUB-CTO · FULL-STACK</text>
+
+  <!-- Online dot -->
+  <circle cx="254" cy="42" r="4" fill="#22C55E">
+    <animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <text x="262" y="45" fill="#22C55E" font-size="8" font-weight="700"
+    font-family="'SF Pro Text', 'Inter', Arial, sans-serif">LIVE</text>
+</svg>

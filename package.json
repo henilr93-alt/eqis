@@ -1,0 +1,22 @@
+{
+  "name": "eqis",
+  "version": "1.0.0",
+  "description": "Etrav QA Intelligence System — dual-engine automated testing",
+  "main": "eqis.js",
+  "scripts": {
+    "start": "node eqis.js start",
+    "stop": "node eqis.js stop",
+    "status": "node eqis.js status",
+    "run-zipy": "node eqis.js run-zipy",
+    "run-journey": "node eqis.js run-journey"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
+    "@faker-js/faker": "^8.4.0",
+    "dotenv": "^16.4.0",
+    "express": "^5.2.1",
+    "gif-encoder-2": "^1.0.5",
+    "node-cron": "^3.0.3",
+    "playwright": "^1.43.0"
+  }
+}

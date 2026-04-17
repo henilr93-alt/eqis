@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#075E54"/>
+      <stop offset="55%" stop-color="#0091EA"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="skin" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FEE4C4"/>
+      <stop offset="100%" stop-color="#F2C89A"/>
+    </linearGradient>
+    <linearGradient id="turtleneck" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1F2937"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+    <linearGradient id="glassTint" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="rgba(200,230,255,0.35)"/>
+      <stop offset="100%" stop-color="rgba(140,180,220,0.15)"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background circle with gradient -->
+  <circle cx="60" cy="60" r="60" fill="url(#bg)"/>
+
+  <!-- Decorative code/math motifs in background -->
+  <g font-family="monospace" font-size="8" fill="rgba(255,255,255,0.12)" font-weight="700">
+    <text x="9" y="25">&lt;/&gt;</text>
+    <text x="89" y="106">{ }</text>
+    <text x="7" y="95">01</text>
+    <text x="93" y="30">##</text>
+    <text x="5" y="60">π</text>
+    <text x="104" y="58">∑</text>
+  </g>
+
+  <!-- Subtle constellation dots -->
+  <g fill="rgba(255,255,255,0.35)">
+    <circle cx="18" cy="68" r="1.2"/>
+    <circle cx="102" cy="72" r="1.2"/>
+    <circle cx="22" cy="42" r="0.9"/>
+    <circle cx="100" cy="46" r="0.9"/>
+    <circle cx="26" cy="90" r="0.8"/>
+    <circle cx="94" cy="92" r="0.8"/>
+  </g>
+  <!-- Thin connecting lines -->
+  <g stroke="rgba(255,255,255,0.15)" stroke-width="0.5" fill="none">
+    <path d="M 18 68 L 22 42 L 26 90"/>
+    <path d="M 102 72 L 100 46 L 94 92"/>
+  </g>
+
+  <!-- Turtleneck shoulders -->
+  <path d="M 28 102 Q 28 82 42 80 L 78 80 Q 92 82 92 102 L 92 120 L 28 120 Z" fill="url(#turtleneck)"/>
+  <!-- Collar ridge -->
+  <ellipse cx="60" cy="80" rx="19" ry="4" fill="#374151"/>
+  <ellipse cx="60" cy="79.5" rx="17" ry="2.5" fill="#1F2937"/>
+
+  <!-- Head / face -->
+  <circle cx="60" cy="52" r="26" fill="url(#skin)"/>
+
+  <!-- Hair — modern undercut, tousled top -->
+  <path d="M 34 42 Q 32 22 58 20 Q 86 21 86 40 Q 86 34 78 32 Q 70 26 60 28 Q 48 30 42 34 Q 36 34 34 42 Z" fill="#1E293B"/>
+  <!-- Hair highlight strand -->
+  <path d="M 44 26 Q 60 22 74 28" stroke="#475569" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+
+  <!-- Headset band -->
+  <path d="M 34 38 Q 60 14 86 38" stroke="#0F172A" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- Left earpiece -->
+  <circle cx="33" cy="52" r="5" fill="#0F172A"/>
+  <circle cx="33" cy="52" r="2.6" fill="#475569"/>
+  <!-- Right earpiece -->
+  <circle cx="87" cy="52" r="5" fill="#0F172A"/>
+  <circle cx="87" cy="52" r="2.6" fill="#475569"/>
+  <!-- Mic boom arm -->
+  <path d="M 87 57 Q 96 64 93 74" stroke="#0F172A" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <circle cx="93" cy="74" r="2.8" fill="#0F172A"/>
+  <!-- Mic "on-air" LED -->
+  <circle cx="93" cy="74" r="1.4" fill="#22C55E">
+    <animate attributeName="opacity" values="1;0.35;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Raised eyebrows (one arched = witty) -->
+  <path d="M 42 42 Q 49 38 55 42" stroke="#1E293B" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <path d="M 65 40 Q 72 35 79 41" stroke="#1E293B" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+
+  <!-- Round smart glasses -->
+  <g stroke="#0F172A" stroke-width="2.2" fill="url(#glassTint)">
+    <circle cx="49" cy="52" r="8"/>
+    <circle cx="71" cy="52" r="8"/>
+  </g>
+  <!-- Bridge -->
+  <line x1="57" y1="52" x2="63" y2="52" stroke="#0F172A" stroke-width="2.2"/>
+  <!-- Glass glint (signature shine) -->
+  <path d="M 43 48 Q 46 46 49 48" stroke="rgba(255,255,255,0.9)" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+  <path d="M 65 48 Q 68 46 71 48" stroke="rgba(255,255,255,0.9)" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+
+  <!-- Eyes behind glasses -->
+  <circle cx="49" cy="53" r="1.4" fill="#0F172A"/>
+  <circle cx="71" cy="53" r="1.4" fill="#0F172A"/>
+
+  <!-- Cheek blush — subtle -->
+  <ellipse cx="40" cy="60" rx="3.5" ry="1.6" fill="rgba(251,113,133,0.22)"/>
+  <ellipse cx="80" cy="60" rx="3.5" ry="1.6" fill="rgba(251,113,133,0.22)"/>
+
+  <!-- Smirk — asymmetric confident half-smile -->
+  <path d="M 50 65 Q 57 70 68 64" stroke="#0F172A" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- Dimple accent -->
+  <circle cx="68" cy="64" r="0.7" fill="#0F172A" opacity="0.6"/>
+
+  <!-- Chin highlight -->
+  <path d="M 54 71 Q 60 74 66 71" stroke="rgba(160,110,70,0.25)" stroke-width="0.9" fill="none"/>
+
+  <!-- SUB-CTO badge on turtleneck -->
+  <rect x="47" y="91" width="26" height="7" rx="2" fill="#FBBF24" stroke="#B45309" stroke-width="0.4"/>
+  <text x="60" y="96.2" fill="#0F172A" font-size="4.2" text-anchor="middle" font-weight="900" font-family="Arial, sans-serif" letter-spacing="0.3">SUB-CTO</text>
+
+  <!-- Tiny Anthropic-style bracket accent at bottom -->
+  <text x="60" y="115" fill="rgba(255,255,255,0.35)" font-size="4" text-anchor="middle" font-weight="700" font-family="monospace">&lt; FRAKA /&gt;</text>
+</svg>

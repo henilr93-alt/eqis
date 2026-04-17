@@ -1,0 +1,51 @@
+# Credentials & secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Dependencies
+node_modules/
+
+# Large artifacts & recordings
+reports/
+logs/
+
+# Runtime state (contains OTPs, live metrics, system state)
+state/otpStore.json
+state/systemState.json
+state/recordingState.json
+state/bookingLock.json
+state/engineState.json
+state/runHistory.json
+state/trendCache.json
+state/searchQualitySignal.json
+state/metricsHistory.json
+state/pulseHistory.json
+state/timingHistory.json
+state/cmtEscalations.json
+state/intervals.json
+
+# FRAKA state (conversations, build history, backups)
+state/fraka/chats/
+state/fraka/code-backups/
+state/fraka/buildHistory.json
+state/fraka/otpStore.json
+state/fraka/frakaState.json
+state/fraka/proposals.json
+state/fraka/developments.json
+state/fraka/painPoints.json
+state/fraka/techFeedback.json
+
+# OS / editor cruft
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing temp files
+*.tmp.js
+inspect-*.js
+test-*-tmp.js

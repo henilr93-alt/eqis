@@ -1,0 +1,35 @@
+[
+  {
+    "id": "DIR-mnuv7zap-zlx9",
+    "directive": "All engines must split 50% domestic and 50% international routes",
+    "category": "scope",
+    "priority": "high",
+    "capturedAt": "2026-04-11T21:47:09.553Z",
+    "capturedFromMessageId": null,
+    "capturedFrom": "manual-dashboard",
+    "status": "active",
+    "updatedAt": "2026-04-11T21:47:09.553Z"
+  },
+  {
+    "id": "DIR-mnuv83ik-3ww3",
+    "directive": "Always report any P0 bug in real-time, and always include cost estimates when proposing changes",
+    "category": "reporting",
+    "priority": "high",
+    "capturedAt": "2026-04-11T21:47:15.020Z",
+    "capturedFromMessageId": null,
+    "capturedFrom": "ceo-chat",
+    "status": "active",
+    "updatedAt": "2026-04-11T21:47:15.020Z"
+  },
+  {
+    "id": "DIR-mnuvdl41-e18h",
+    "directive": "Zipy Intelligence analyzes 5 randomly-sampled live sessions every 10 minutes",
+    "category": "scope",
+    "priority": "high",
+    "capturedAt": "2026-04-11T21:51:31.105Z",
+    "capturedFromMessageId": null,
+    "capturedFrom": "ceo-chat",
+    "status": "active",
+    "updatedAt": "2026-04-11T21:51:31.105Z"
+  }
+]
