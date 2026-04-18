@@ -8,27 +8,44 @@ const logger = require('./logger');
  * Call this between form steps to ensure nothing blocks the next interaction.
  */
 async function dismissAllOverlays(page) {
-  // Close any open react-datepicker by pressing Escape
-  await page.keyboard.press('Escape');
+  // STRATEGY 1: Press Escape to close keyboard-dismissable overlays
+  await page.keyboard.press('Escape').catch(() => {});
   await page.waitForTimeout(200);
-  // Remove lingering modal/overlay DOM elements
+
+  // STRATEGY 2: Forcefully hide ALL overlay-like elements via JS
   await page.evaluate(() => {
-    // Close react-datepicker popper if still open
-    document.querySelectorAll('.react-datepicker__tab-loop, .react-datepicker-popper').forEach(el => {
-      el.style.display = 'none';
-    });
-    // Remove modal overlays
-    ['.react-responsive-modal-root', '.react-responsive-modal-container',
-     '.react-responsive-modal-overlay', '[class*="popup"]'].forEach(sel => {
-      document.querySelectorAll(sel).forEach(el => {
-        if (el.id !== 'root' && el.id !== 'portal-root') el.remove();
-      });
-    });
+    const selectors = [
+      '.react-datepicker__tab-loop', '.react-datepicker-popper', '.react-datepicker',
+      '.react-responsive-modal-root', '.react-responsive-modal-container',
+      '.react-responsive-modal-overlay',
+      '[class*="popup"]', '[class*="dropdown"][class*="open"]',
+      '[class*="overlay"]', '[class*="modal"][class*="show"]',
+      '[role="dialog"]', '[role="tooltip"]', '[aria-hidden="false"][class*="modal"]'
+    ];
+    for (const sel of selectors) {
+      try {
+        document.querySelectorAll(sel).forEach(el => {
+          // Skip critical app roots
+          if (el.id === 'root' || el.id === 'portal-root') return;
+          // For datepicker poppers, hide rather than remove (Etrav's React may re-create)
+          if (el.classList && el.classList.contains('react-datepicker-popper')) {
+            el.style.display = 'none';
+          } else {
+            el.remove();
+          }
+        });
+      } catch {}
+    }
     window.scrollTo(0, 0);
   }).catch(() => {});
-  // Click on a neutral area to close any lingering dropdown
-  await page.mouse.click(640, 180).catch(() => {});
+
+  // STRATEGY 3: Click on a neutral safe area (top-left of form area, NOT dropdown zone)
+  await page.mouse.click(100, 100).catch(() => {});
   await page.waitForTimeout(300);
+
+  // STRATEGY 4: One more Escape for any dropdowns that just opened
+  await page.keyboard.press('Escape').catch(() => {});
+  await page.waitForTimeout(200);
 }
 
 
@@ -507,33 +524,91 @@ async function selectTripType(page, tripType) {
 /**
  * Click the Search Flight button.
  */
-async function clickSearchFlight(page) {
-  const handle = await page.evaluateHandle(() => {
+/**
+ * Multi-strategy click for Search Flight / Search Hotel buttons.
+ * Tries 4 strategies in sequence; succeeds if any one works.
+ *  1. Aggressive dismiss of any open overlays (calendar/dropdown can hide button)
+ *  2. Scroll button into view
+ *  3. Playwright force click
+ *  4. Mouse click at button center via getBoundingClientRect
+ *  5. JS-native HTMLElement.click() (bypasses Playwright actionability checks)
+ */
+async function clickSearchButton(page, textRegex, label) {
+  // Step 1: Force-close any open overlays that might cover the button
+  try {
+    await page.evaluate(() => {
+      ['.react-datepicker__tab-loop', '.react-datepicker-popper', '.react-datepicker',
+       '[class*="dropdown"][class*="open"]', '[class*="popup"]'].forEach(sel => {
+        document.querySelectorAll(sel).forEach(el => {
+          if (el.id !== 'root' && el.id !== 'portal-root') el.style.display = 'none';
+        });
+      });
+    }).catch(() => {});
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(200);
+  } catch {}
+
+  // Step 2: Find the button and scroll it into view
+  const sourceText = textRegex.source.replace(/\\/g, '');
+  const btnHandle = await page.evaluateHandle((src) => {
+    const re = new RegExp(src, 'i');
     const btns = Array.from(document.querySelectorAll('button'));
-    return btns.find(b => /Search Flight/i.test(b.textContent || '')) || null;
-  });
-  const el = handle.asElement();
-  if (el) {
-    await el.click({ force: true });
-    return true;
+    const btn = btns.find(b => re.test(b.textContent || ''));
+    if (btn) {
+      btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+      return btn;
+    }
+    return null;
+  }, sourceText);
+  const el = btnHandle.asElement();
+  if (!el) {
+    logger.warn('[FORM] Search ' + label + ' button not found in DOM');
+    return false;
   }
+  await page.waitForTimeout(300);
+
+  // Step 3: Playwright force click
+  try {
+    await el.click({ force: true, timeout: 5000 });
+    return true;
+  } catch (e1) {
+    logger.warn('[FORM] Search ' + label + ' strategy 1 (force click) failed: ' + e1.message.substring(0, 80));
+  }
+
+  // Step 4: Mouse click at button bounding box center
+  try {
+    const box = await el.boundingBox();
+    if (box && box.width > 0 && box.height > 0) {
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      return true;
+    }
+  } catch (e2) {
+    logger.warn('[FORM] Search ' + label + ' strategy 2 (mouse click) failed: ' + e2.message.substring(0, 80));
+  }
+
+  // Step 5: JS native click — bypasses all Playwright actionability checks
+  try {
+    await el.evaluate(b => {
+      b.scrollIntoView({ block: 'center' });
+      b.click();
+    });
+    return true;
+  } catch (e3) {
+    logger.warn('[FORM] Search ' + label + ' strategy 3 (JS click) failed: ' + e3.message.substring(0, 80));
+  }
+
   return false;
+}
+
+async function clickSearchFlight(page) {
+  return clickSearchButton(page, /Search Flight/i, 'Flight');
 }
 
 /**
  * Click the Search Hotels button.
  */
 async function clickSearchHotels(page) {
-  const handle = await page.evaluateHandle(() => {
-    const btns = Array.from(document.querySelectorAll('button'));
-    return btns.find(b => /Search Hotel/i.test(b.textContent || '')) || null;
-  });
-  const el = handle.asElement();
-  if (el) {
-    await el.click({ force: true });
-    return true;
-  }
-  return false;
+  return clickSearchButton(page, /Search Hotel/i, 'Hotel');
 }
 
 /**
@@ -1064,6 +1139,7 @@ module.exports = {
   pickFlightDateRange,
   pickHotelDateRange,
   selectTripType,
+  clickSearchButton,
   clickSearchFlight,
   clickSearchHotels,
   countFlightResults,

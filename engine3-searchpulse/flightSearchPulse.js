@@ -178,8 +178,49 @@ async function runFlightSearchPulse(page, scenario, pulseId) {
     });
     await page.waitForTimeout(300);
 
-    // Click search
-    const searchClicked = await clickSearchFlight(page);
+    // PRE-SUBMIT VALIDATION: read form state before clicking Search.
+    // If anything is missing, log it (we still try to submit; partial form is better than none).
+    const preSubmit = await page.evaluate(() => {
+      const fromInput = document.querySelector('input[placeholder="Where From ?"]');
+      const toInput = document.querySelector('input[placeholder="Where To ?"]');
+      const wrappers = document.querySelectorAll('.react-datepicker-wrapper');
+      const depDateText = wrappers[0] ? (wrappers[0].textContent || '').trim() : '';
+      const retDateText = wrappers[1] ? (wrappers[1].textContent || '').trim() : '';
+      return {
+        from: fromInput ? fromInput.value : '',
+        to: toInput ? toInput.value : '',
+        depDate: depDateText,
+        retDate: retDateText
+      };
+    }).catch(() => ({}));
+    const issues = [];
+    if (!preSubmit.from) issues.push('origin empty');
+    if (!preSubmit.to) issues.push('destination empty');
+    if (!preSubmit.depDate || preSubmit.depDate === '-') issues.push('departure empty');
+    if (scenario.tripType === 'round-trip' && (!preSubmit.retDate || preSubmit.retDate === '-')) issues.push('return empty');
+    if (issues.length > 0) {
+      result.actions.push('PRE-SUBMIT WARNINGS: ' + issues.join(', ') + ' (form: ' + JSON.stringify(preSubmit) + ')');
+      logger.warn('[PULSE] Pre-submit warnings for ' + scenario.from + '->' + scenario.to + ': ' + issues.join(', '));
+    }
+
+    // Click search (uses multi-strategy click in clickSearchFlight)
+    let searchClicked = await clickSearchFlight(page);
+
+    // POST-CLICK AUTO-RETRY: if URL doesn't change in 5s, the click probably hit an
+    // overlay or didn't register. Try once more with a fresh dismissAllOverlays.
+    if (searchClicked) {
+      const urlChanged = await page.waitForFunction(
+        () => /flights\/(oneway|roundtrip)/i.test(window.location.href),
+        { timeout: 5000 }
+      ).then(() => true).catch(() => false);
+      if (!urlChanged) {
+        logger.warn('[PULSE] First search click did not navigate — retrying after dismiss');
+        await dismissAllOverlays(page);
+        await page.waitForTimeout(500);
+        searchClicked = await clickSearchFlight(page);
+        result.actions.push('Search retried after URL no-change');
+      }
+    }
     result.actions.push(`Search clicked: ${searchClicked}`);
 
     if (!searchClicked) {

@@ -171,7 +171,71 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
       if (btn) btn.scrollIntoView({ behavior: 'instant', block: 'center' });
     });
     await page.waitForTimeout(300);
-    const searchClicked = await clickSearchHotels(page);
+    // PRE-SUBMIT VALIDATION: read hotel form state before clicking Search
+    const preSubmitH = await page.evaluate(() => {
+      const destInput = document.querySelector('input[placeholder="Hotel name or Destination"], input.react-autosuggest__input');
+      // Date fields show their value as text (or "-" when empty)
+      const inputs = document.querySelectorAll('input');
+      const dates = { checkin: '', checkout: '' };
+      inputs.forEach(inp => {
+        const ph = (inp.placeholder || '').toLowerCase();
+        if (ph.includes('check') && ph.includes('in')) dates.checkin = (inp.value || '').trim();
+        if (ph.includes('check') && ph.includes('out')) dates.checkout = (inp.value || '').trim();
+      });
+      // Fallback: read from displayed date text
+      if (!dates.checkin || !dates.checkout) {
+        document.querySelectorAll('div').forEach(d => {
+          if (d.children.length > 0) return;
+          const t = (d.textContent || '').trim();
+          if (/^\d{1,2}\s+\w{3}'\d{2}$/.test(t)) {
+            if (!dates.checkin) dates.checkin = t;
+            else if (!dates.checkout) dates.checkout = t;
+          }
+        });
+      }
+      return {
+        dest: destInput ? destInput.value : '',
+        checkin: dates.checkin,
+        checkout: dates.checkout
+      };
+    }).catch(() => ({}));
+    const issuesH = [];
+    if (!preSubmitH.dest) issuesH.push('destination empty');
+    if (!preSubmitH.checkin || preSubmitH.checkin === '-') issuesH.push('check-in empty');
+    if (!preSubmitH.checkout || preSubmitH.checkout === '-') issuesH.push('check-out empty');
+    if (issuesH.length > 0) {
+      result.actions.push('PRE-SUBMIT WARNINGS: ' + issuesH.join(', ') + ' (form: ' + JSON.stringify(preSubmitH) + ')');
+      logger.warn('[PULSE] Hotel pre-submit warnings for ' + scenario.destination + ': ' + issuesH.join(', '));
+      // AUTO-REPAIR: if checkout is empty for hotel, attempt to set it
+      if (issuesH.includes('check-out empty') && !issuesH.includes('check-in empty')) {
+        try {
+          const checkoutDate = new Date(checkinDate);
+          checkoutDate.setDate(checkoutDate.getDate() + (scenario.nights || 1));
+          await pickHotelDateRange(page, checkinDate, checkoutDate);
+          result.actions.push('AUTO-REPAIR: re-attempted hotel date range');
+        } catch (repairErr) {
+          logger.warn('[PULSE] Auto-repair of hotel dates failed: ' + repairErr.message);
+        }
+      }
+    }
+
+    // Click search (uses multi-strategy click in clickSearchHotels)
+    let searchClicked = await clickSearchHotels(page);
+
+    // POST-CLICK AUTO-RETRY: if URL doesn't change in 5s, retry once
+    if (searchClicked) {
+      const urlChangedH = await page.waitForFunction(
+        () => /hotels\/search-results/i.test(window.location.href),
+        { timeout: 5000 }
+      ).then(() => true).catch(() => false);
+      if (!urlChangedH) {
+        logger.warn('[PULSE] First hotel search click did not navigate — retrying after dismiss');
+        await dismissAllOverlays(page);
+        await page.waitForTimeout(500);
+        searchClicked = await clickSearchHotels(page);
+        result.actions.push('Hotel search retried after URL no-change');
+      }
+    }
     result.actions.push(`Search clicked: ${searchClicked}`);
 
     if (!searchClicked) {
