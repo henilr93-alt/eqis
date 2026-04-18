@@ -569,10 +569,11 @@ async function getFlightResultCountFromText(page) {
   try {
     return await page.evaluate(() => {
       const bodyText = document.body.innerText || '';
-      // Try "Showing (N) Flights" first, then "Showing (N)" without suffix
-      const m1 = bodyText.match(/Showing\s*\((\d+)\)\s*Flights/i);
+      // Try "Showing [N] Flights" / "Showing (N) Flights" / "Showing N Flights"
+      // Etrav uses [N] (square brackets) in some places — handle both bracket types
+      const m1 = bodyText.match(/Showing\s*[\(\[]?\s*(\d+)\s*[\)\]]?\s*Flights?/i);
       if (m1) return parseInt(m1[1], 10);
-      const m2 = bodyText.match(/Showing\s*\((\d+)\)/i);
+      const m2 = bodyText.match(/Showing\s*[\(\[](\d+)[\)\]]/i);
       if (m2) return parseInt(m2[1], 10);
       return null;
     });

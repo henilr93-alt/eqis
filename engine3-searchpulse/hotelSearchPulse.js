@@ -258,7 +258,7 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
         if (bookNow > 0) return true;
         // Text detection
         const bodyText = document.body.innerText || '';
-        const showingMatch = bodyText.match(/Showing\s*\(?(\d+)\)?\s*Hotels/i);
+        const showingMatch = bodyText.match(/Showing\s*[\(\[]?\s*(\d+)\s*[\)\]]?\s*Hotels/i);
         if (showingMatch && parseInt(showingMatch[1], 10) > 0) return true;
         const foundMatch = bodyText.match(/(\d+)\s*hotels?\s*found/i);
         if (foundMatch && parseInt(foundMatch[1], 10) > 0) return true;
@@ -283,12 +283,12 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
         const text = document.body.innerText || '';
         // Multi-pattern extraction (same logic as final result count)
         const patterns = [
-          /Showing\s*\(?(\d+)\)?\s*Hotels?/i,
-          /Showing\s*\(?(\d+)\)?\s*Propert/i,
-          /Showing\s*\(?(\d+)\)?\s*Stays?/i,
+          /Showing\s*[\(\[]?\s*(\d+)\s*[\)\]]?\s*Hotels?/i,
+          /Showing\s*[\(\[]?\s*(\d+)\s*[\)\]]?\s*Propert/i,
+          /Showing\s*[\(\[]?\s*(\d+)\s*[\)\]]?\s*Stays?/i,
           /(\d+)\s*hotels?\s*found/i,
           /(\d+)\s*properties?\s*found/i,
-          /Showing\s*\((\d+)\)/i
+          /Showing\s*[\(\[](\d+)[\)\]]/i
         ];
         for (const re of patterns) {
           const m = text.match(re);
@@ -338,16 +338,25 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
       const bodyText = document.body.innerText || '';
       const candidates = [];
 
-      // Pattern 1: "Showing (N) Hotels" or "Showing N Hotels" (preferred)
-      const m1 = bodyText.match(/Showing\s*\(?(\d+)\)?\s*Hotels?/i);
+      // Pattern 0 (HIGHEST priority): pagination format "Showing N - M of TOTAL Hotels"
+      // Etrav often uses this for cities with many results — must extract TOTAL, not N or M.
+      const mPaginated = bodyText.match(/Showing\s*\d+\s*[-–to]+\s*\d+\s*of\s*(\d+)\s*Hotels?/i);
+      if (mPaginated) candidates.push({ n: parseInt(mPaginated[1], 10), priority: 0 });
+      // Also handle "of N Properties" variant
+      const mPaginatedProp = bodyText.match(/Showing\s*\d+\s*[-–to]+\s*\d+\s*of\s*(\d+)\s*Propert/i);
+      if (mPaginatedProp) candidates.push({ n: parseInt(mPaginatedProp[1], 10), priority: 0 });
+
+      // Pattern 1: "Showing [N] Hotels" or "Showing (N) Hotels" or "Showing N Hotels"
+      // Etrav actually uses [N] (square brackets) for hotel counts — handle both bracket types
+      const m1 = bodyText.match(/Showing\s*[\(\[]?\s*(\d+)\s*[\)\]]?\s*Hotels?/i);
       if (m1) candidates.push({ n: parseInt(m1[1], 10), priority: 1 });
 
-      // Pattern 2: "Showing (N) Properties" / "Properties found"
-      const m2 = bodyText.match(/Showing\s*\(?(\d+)\)?\s*Propert/i);
+      // Pattern 2: "Showing [N] Properties" — same bracket fix as Pattern 1
+      const m2 = bodyText.match(/Showing\s*[\(\[]?\s*(\d+)\s*[\)\]]?\s*Propert/i);
       if (m2) candidates.push({ n: parseInt(m2[1], 10), priority: 1 });
 
-      // Pattern 3: "Showing (N) Stays"
-      const m3 = bodyText.match(/Showing\s*\(?(\d+)\)?\s*Stays?/i);
+      // Pattern 3: "Showing [N] Stays" — same bracket fix
+      const m3 = bodyText.match(/Showing\s*[\(\[]?\s*(\d+)\s*[\)\]]?\s*Stays?/i);
       if (m3) candidates.push({ n: parseInt(m3[1], 10), priority: 1 });
 
       // Pattern 4: "N hotels/properties found" reverse phrasing
@@ -356,8 +365,8 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
       const m5 = bodyText.match(/(\d+)\s*properties?\s*found/i);
       if (m5) candidates.push({ n: parseInt(m5[1], 10), priority: 2 });
 
-      // Pattern 6: "Showing (N)" alone (no word after) — only use if other patterns fail
-      const m6 = bodyText.match(/Showing\s*\((\d+)\)/i);
+      // Pattern 6: "Showing [N]" or "Showing (N)" alone — handle both brackets
+      const m6 = bodyText.match(/Showing\s*[\(\[](\d+)[\)\]]/i);
       if (m6) candidates.push({ n: parseInt(m6[1], 10), priority: 3 });
 
       // Pattern 7 (DOM-based fallback): Read from Etrav's specific result counter element

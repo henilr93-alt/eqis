@@ -263,10 +263,43 @@ async function _runSearchPulseEngineInternal() {
       try {
         recorderH = await createRecordingPage(browser, page, String(Math.floor(10000 + Math.random() * 90000)), 'https://new.etrav.in/hotels');
         hotelResult = await runHotelSearchPulse(recorderH.recPage, hotelScenario, pulseId);
+
+        // Wait for substantial hotel results to render (not just 1-2 skeleton cards) so the
+        // recording captures the actual loaded state. Three checks in sequence:
+        // 1) At least 5 hotel cards visible (or all that loaded for low-result destinations)
+        // 2) Filter sidebar skeleton loaders are gone (no more [class*="skeleton"] visible)
+        // 3) Then 8s hold for any final renders (price load, image load, etc.)
         try {
-          await recorderH.recPage.waitForSelector('[class*="hotel-card"], [class*="hotel_card"], [class*="property-card"], button:has-text("Book Now")', { timeout: 15000 });
-        } catch { /* cards may not appear for zero-result searches */ }
-        await recorderH.recPage.waitForTimeout(5000);
+          await recorderH.recPage.waitForFunction(() => {
+            // Count actual hotel cards that have content (not empty skeleton placeholders)
+            const cards = document.querySelectorAll('[class*="hotel-card"], [class*="hotel_card"], [class*="property-card"]');
+            const realCards = Array.from(cards).filter(c => {
+              const text = (c.textContent || '').trim();
+              return text.length > 50; // skeleton has tiny/empty text
+            });
+            // Also accept "no results" page as a valid stopping point
+            const bodyText = document.body.innerText || '';
+            const noResults = /no hotels found|no results|0\s*hotels|showing\s*\(0\)/i.test(bodyText);
+            // Wait until either: ≥5 real cards visible, OR no-results page shown
+            return realCards.length >= 5 || noResults;
+          }, { timeout: 25000 });
+        } catch {
+          // Soft timeout — continue with whatever rendered
+        }
+
+        // Also wait for filter skeleton loaders to disappear
+        try {
+          await recorderH.recPage.waitForFunction(() => {
+            const skeletons = document.querySelectorAll('[class*="skeleton" i], [class*="loader" i], [class*="placeholder" i]');
+            const visibleSkeletons = Array.from(skeletons).filter(s => s.offsetParent !== null);
+            return visibleSkeletons.length === 0;
+          }, { timeout: 10000 });
+        } catch {
+          // Skeletons may persist for some destinations — don't block
+        }
+
+        // Final 8s hold so the video shows the fully rendered results page
+        await recorderH.recPage.waitForTimeout(8000);
         const mp4Path = await recorderH.finalize();
         if (mp4Path) hotelResult.recordingPath = mp4Path;
         logger.info('[RECORDER] Hotel recording saved for ' + (hotelResult.destination || '?'));
