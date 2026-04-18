@@ -83,25 +83,14 @@ async function runFlightSearchPulse(page, scenario, pulseId) {
     await selectTripType(page, scenario.tripType || 'one-way');
     result.actions.push(`Trip type: ${scenario.tripType || 'one-way'}`);
 
-    // For round-trip searches: alternate the "RoundTrip Fare" ticker state
-    // Pattern: even count = checked (default), odd count = unchecked
-    // Counter persists in state/pulseHistory.json as roundTripCount
-    if (scenario.tripType === 'round-trip') {
+    // For round-trip searches: read pre-assigned target from scenario (set by pulsePicker)
+    // pulsePicker assigns roundTripFareShouldBeChecked sequentially per pulse to avoid
+    // race conditions when Flight DOM + Flight INTL run in parallel.
+    if (scenario.tripType === 'round-trip' && typeof scenario.roundTripFareShouldBeChecked === 'boolean') {
       try {
-        const pathMod = require('path');
-        const fsMod = require('fs');
-        const pulseHistPath = pathMod.join(__dirname, '..', 'state', 'pulseHistory.json');
-        let pulseHist = {};
-        try { pulseHist = JSON.parse(fsMod.readFileSync(pulseHistPath, 'utf-8')); } catch {}
-        const currentCount = pulseHist.roundTripCount || 0;
-        // Even count (0, 2, 4, ...) = checked, odd count (1, 3, 5, ...) = unchecked
-        const shouldBeChecked = (currentCount % 2) === 0;
         await page.waitForTimeout(500);
-        const toggleResult = await toggleRoundTripFare(page, shouldBeChecked);
-        result.actions.push('RoundTrip Fare ticker: target=' + (shouldBeChecked ? 'checked' : 'unchecked') + ' result=' + (toggleResult.actualAfter ? 'checked' : 'unchecked') + ' [count=' + currentCount + ']');
-        // Persist incremented count
-        pulseHist.roundTripCount = currentCount + 1;
-        fsMod.writeFileSync(pulseHistPath, JSON.stringify(pulseHist, null, 2));
+        const toggleResult = await toggleRoundTripFare(page, scenario.roundTripFareShouldBeChecked);
+        result.actions.push('RoundTrip Fare ticker: target=' + (scenario.roundTripFareShouldBeChecked ? 'checked' : 'unchecked') + ' result=' + (toggleResult.actualAfter ? 'checked' : 'unchecked') + ' [count=' + (scenario.roundTripCounter || 0) + ']');
         result.roundTripFareChecked = toggleResult.actualAfter;
       } catch (rtErr) {
         logger.warn('[PULSE] RoundTrip Fare toggle failed: ' + rtErr.message);

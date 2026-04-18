@@ -281,10 +281,19 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
     while (Date.now() - stabilityStart < 45000) {
       const currentCount = await page.evaluate(() => {
         const text = document.body.innerText || '';
-        const m = text.match(/Showing\s*\(?(\d+)\)?\s*Hotels/i);
-        if (m) return m[1];
-        const m2 = text.match(/(\d+)\s*hotels?\s*found/i);
-        if (m2) return m2[1];
+        // Multi-pattern extraction (same logic as final result count)
+        const patterns = [
+          /Showing\s*\(?(\d+)\)?\s*Hotels?/i,
+          /Showing\s*\(?(\d+)\)?\s*Propert/i,
+          /Showing\s*\(?(\d+)\)?\s*Stays?/i,
+          /(\d+)\s*hotels?\s*found/i,
+          /(\d+)\s*properties?\s*found/i,
+          /Showing\s*\((\d+)\)/i
+        ];
+        for (const re of patterns) {
+          const m = text.match(re);
+          if (m) return m[1];
+        }
         return null;
       }).catch(() => null);
 
@@ -323,15 +332,50 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
       result.screenshotPath = path.join(__dirname, '..', 'reports', 'journey', pulseId, 'screenshots', `${ssStepName}.png`);
     }
 
-    // Count results — prefer "Showing (N) Hotels" text, fall back to card count
-    // Note: parens optional in regex to match stability check pattern (Etrav may omit them)
+    // Count results — multi-pattern extraction to handle Etrav's varying phrasing
+    // (sometimes "Showing N Hotels", sometimes "Showing N properties", sometimes "Showing (N)" etc.)
     const textCount = await page.evaluate(() => {
       const bodyText = document.body.innerText || '';
-      const m1 = bodyText.match(/Showing\s*\(?(\d+)\)?\s*Hotels/i);
-      if (m1) return parseInt(m1[1], 10);
-      const m2 = bodyText.match(/(\d+)\s*hotels?\s*found/i);
-      if (m2) return parseInt(m2[1], 10);
-      return null;
+      const candidates = [];
+
+      // Pattern 1: "Showing (N) Hotels" or "Showing N Hotels" (preferred)
+      const m1 = bodyText.match(/Showing\s*\(?(\d+)\)?\s*Hotels?/i);
+      if (m1) candidates.push({ n: parseInt(m1[1], 10), priority: 1 });
+
+      // Pattern 2: "Showing (N) Properties" / "Properties found"
+      const m2 = bodyText.match(/Showing\s*\(?(\d+)\)?\s*Propert/i);
+      if (m2) candidates.push({ n: parseInt(m2[1], 10), priority: 1 });
+
+      // Pattern 3: "Showing (N) Stays"
+      const m3 = bodyText.match(/Showing\s*\(?(\d+)\)?\s*Stays?/i);
+      if (m3) candidates.push({ n: parseInt(m3[1], 10), priority: 1 });
+
+      // Pattern 4: "N hotels/properties found" reverse phrasing
+      const m4 = bodyText.match(/(\d+)\s*hotels?\s*found/i);
+      if (m4) candidates.push({ n: parseInt(m4[1], 10), priority: 2 });
+      const m5 = bodyText.match(/(\d+)\s*properties?\s*found/i);
+      if (m5) candidates.push({ n: parseInt(m5[1], 10), priority: 2 });
+
+      // Pattern 6: "Showing (N)" alone (no word after) — only use if other patterns fail
+      const m6 = bodyText.match(/Showing\s*\((\d+)\)/i);
+      if (m6) candidates.push({ n: parseInt(m6[1], 10), priority: 3 });
+
+      // Pattern 7 (DOM-based fallback): Read from Etrav's specific result counter element
+      // Etrav usually puts the count in a span/div near the top of results
+      try {
+        const els = document.querySelectorAll('[class*="showing" i], [class*="result-count" i], [class*="ResultCount" i], [class*="totalResult" i]');
+        for (const el of els) {
+          const t = (el.textContent || '').trim();
+          const m = t.match(/(\d+)/);
+          if (m) candidates.push({ n: parseInt(m[1], 10), priority: 2 });
+        }
+      } catch {}
+
+      if (candidates.length === 0) return null;
+      // Pick the highest-priority match (lower priority number = better)
+      // If multiple at same priority, pick the largest plausible count
+      candidates.sort((a, b) => a.priority - b.priority || b.n - a.n);
+      return candidates[0].n;
     });
     const cardCount = await countHotelResults(page);
     result.resultCount = textCount != null ? textCount : cardCount;

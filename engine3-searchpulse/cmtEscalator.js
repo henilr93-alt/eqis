@@ -16,11 +16,18 @@ const COOLDOWN_MS = 0;                   // No cooldown — every occurrence get
 const TICKET_API = 'https://api.codemagen.com/myaccount-service/api/v1.0/issue/create';
 
 function loadEscalationState() {
+  let raw;
   try {
-    return JSON.parse(fs.readFileSync(ESCALATION_STATE_PATH, 'utf-8'));
+    raw = JSON.parse(fs.readFileSync(ESCALATION_STATE_PATH, 'utf-8'));
   } catch {
-    return { escalations: [], pulseCount: 0, nextIssueNumber: 1 };
+    raw = {};
   }
+  // Normalize: ensure all fields exist even when file has {} or missing keys
+  return {
+    escalations: Array.isArray(raw.escalations) ? raw.escalations : [],
+    pulseCount: typeof raw.pulseCount === 'number' ? raw.pulseCount : 0,
+    nextIssueNumber: typeof raw.nextIssueNumber === 'number' ? raw.nextIssueNumber : 1,
+  };
 }
 
 function saveEscalationState(state) {

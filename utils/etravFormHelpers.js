@@ -542,7 +542,9 @@ async function clickPaxButton(page, rowLabel, direction) {
 
   if (!box) return false;
   await page.mouse.click(box.x, box.y);
-  await page.waitForTimeout(150);
+  // 250ms wait (raised from 150ms) — gives React enough time to process the click
+  // even when other searches are running in parallel and competing for CPU
+  await page.waitForTimeout(250);
   return true;
 }
 

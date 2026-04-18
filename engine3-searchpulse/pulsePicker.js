@@ -181,7 +181,9 @@ function loadPulseHistory() {
 
 function savePulseHistory(newIds, existing) {
   const combined = [...newIds, ...existing.recentIds].slice(0, 12);
-  fs.writeFileSync(PULSE_HISTORY_PATH, JSON.stringify({ recentIds: combined }, null, 2));
+  // Preserve all other fields (e.g., roundTripCount) — only overwrite recentIds
+  const merged = { ...existing, recentIds: combined };
+  fs.writeFileSync(PULSE_HISTORY_PATH, JSON.stringify(merged, null, 2));
 }
 
 function wasRecentlyUsed(id, history) {
@@ -295,6 +297,11 @@ function pickPulseScenarios(trendData) {
   // Apply random date offset + trip type to each flight search
   // Date: 50% near-term (1-10d), 30% planned (11-30d), 20% advance (31-90d)
   // Trip: 50% one-way, 50% round-trip (return 4-30 days after departure)
+  // Read current roundTripCount once for this pulse
+  let pulseHist = {};
+  try { pulseHist = JSON.parse(fs.readFileSync(PULSE_HISTORY_PATH, 'utf-8')); } catch {}
+  let rtCount = pulseHist.roundTripCount || 0;
+
   const clonedFlights = flightSearches.map(s => {
     const c = { ...s };
     c.dateOffsetDays = pickDateOffset();
@@ -305,8 +312,20 @@ function pickPulseScenarios(trendData) {
     const pax = pickFlightPax();
     c.passengers = pax;
     c.cabinClass = pickCabinClass(c.type || 'domestic', c.from || '', c.to || '');
+
+    // For round-trip: assign target ticker state from sequential counter
+    // Even count = checked (default), odd = unchecked
+    if (c.tripType === 'round-trip') {
+      c.roundTripFareShouldBeChecked = (rtCount % 2) === 0;
+      c.roundTripCounter = rtCount;
+      rtCount++;
+    }
     return c;
   });
+
+  // Persist updated counter back to pulseHistory
+  pulseHist.roundTripCount = rtCount;
+  try { fs.writeFileSync(PULSE_HISTORY_PATH, JSON.stringify(pulseHist, null, 2)); } catch {}
   const clonedHotels = hotelSearches.map(s => {
     const c = { ...s };
     c.checkinOffset = pickDateOffset();

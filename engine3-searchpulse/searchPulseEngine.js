@@ -212,66 +212,139 @@ async function _runSearchPulseEngineInternal() {
       return { success: false, error: 'Etrav flights page not loading — ' + hcErr.message, etravDown: true };
     }
 
-    // Run flight search pulses
-    // Recording: every search gets recorded (CEO requested next 5 sessions across all 4 engines)
-    // TODO: revert to shouldRecord(5) after CEO review
-    for (const flightScenario of flightSearches) {
-      const willRecord = shouldRecord(1);
+    // Run all 4 searches in PARALLEL (Flight DOM + Flight INTL + Hotel DOM + Hotel INTL).
+    // Each search creates its own recording browser context, so they don't share DOM state.
+    // Pulse cycle time ≈ max(individual search time) ≈ 60-90s, allowing 1 search/min/engine.
+    async function runFlightWithRecording(flightScenario) {
       let result;
       let recorder = null;
-
-      if (willRecord) {
+      try {
+        recorder = await createRecordingPage(browser, page, String(Math.floor(10000 + Math.random() * 90000)), 'https://new.etrav.in/flights');
+        result = await runFlightSearchPulse(recorder.recPage, flightScenario, pulseId);
         try {
-          recorder = await createRecordingPage(browser, page, String(Math.floor(10000 + Math.random() * 90000)), 'https://new.etrav.in/flights');
-          // Run the ACTUAL search on the recording page — video = real search duration
-          result = await runFlightSearchPulse(recorder.recPage, flightScenario, pulseId);
-          // Wait for actual flight result cards to render (not just skeleton), then hold 5s
+          await recorder.recPage.waitForSelector('.accordion_container, .one_way_card, .round_trip_card', { timeout: 15000 });
+        } catch { /* cards may not appear for zero-result searches */ }
+        await recorder.recPage.waitForTimeout(5000);
+        const mp4Path = await recorder.finalize();
+        if (mp4Path) result.recordingPath = mp4Path;
+        logger.info('[RECORDER] Flight recording saved for ' + (result.sector || '?'));
+      } catch (recErr) {
+        logger.error('[RECORDER] Flight recording failed: ' + recErr.message);
+        if (recorder) await recorder.finalize().catch(function() {});
+        // Fallback: run on a fresh recording context (NOT the shared main page — would conflict in parallel)
+        if (!result) {
           try {
-            await recorder.recPage.waitForSelector('.accordion_container, .one_way_card, .round_trip_card', { timeout: 15000 });
-          } catch { /* cards may not appear for zero-result searches */ }
-          await recorder.recPage.waitForTimeout(5000);
-          const mp4Path = await recorder.finalize();
-          if (mp4Path) result.recordingPath = mp4Path;
-          logger.info('[RECORDER] Flight recording saved for ' + (result.sector || '?'));
-        } catch (recErr) {
-          logger.error('[RECORDER] Flight recording failed: ' + recErr.message);
-          if (recorder) await recorder.finalize().catch(function() {});
-          // Fallback: run search on main page if recording failed
-          if (!result) result = await runFlightSearchPulse(page, flightScenario, pulseId);
+            const recFb = await createRecordingPage(browser, page, String(Math.floor(10000 + Math.random() * 90000)), 'https://new.etrav.in/flights');
+            result = await runFlightSearchPulse(recFb.recPage, flightScenario, pulseId);
+            await recFb.finalize().catch(() => {});
+          } catch (fbErr) {
+            result = {
+              searchId: String(Math.floor(10000 + Math.random() * 90000)),
+              label: flightScenario.label || (flightScenario.from + '->' + flightScenario.to),
+              scenarioId: flightScenario.id,
+              scenarioType: flightScenario.type || 'domestic',
+              sector: (flightScenario.from || '') + '→' + (flightScenario.to || ''),
+              searchStatus: 'FAILED',
+              resultCount: 0,
+              loadTimeMs: 0,
+              error: 'Recording context creation failed: ' + fbErr.message,
+              failureReason: 'AUTOMATION: Could not create browser context for parallel search.',
+              actions: []
+            };
+          }
         }
-      } else {
-        result = await runFlightSearchPulse(page, flightScenario, pulseId);
       }
-      pulseData.flightPulses.push(result);
+      return result;
     }
 
-    // Run hotel search pulses (domestic + international)
-    for (const hotelScenario of (hotelSearches || [])) {
-      const willRecordH = shouldRecord(1);
+    async function runHotelWithRecording(hotelScenario) {
       let hotelResult;
       let recorderH = null;
-
-      if (willRecordH) {
+      try {
+        recorderH = await createRecordingPage(browser, page, String(Math.floor(10000 + Math.random() * 90000)), 'https://new.etrav.in/hotels');
+        hotelResult = await runHotelSearchPulse(recorderH.recPage, hotelScenario, pulseId);
         try {
-          recorderH = await createRecordingPage(browser, page, String(Math.floor(10000 + Math.random() * 90000)), 'https://new.etrav.in/hotels');
-          hotelResult = await runHotelSearchPulse(recorderH.recPage, hotelScenario, pulseId);
-          // Wait for actual hotel result cards to render, then hold 5s
+          await recorderH.recPage.waitForSelector('[class*="hotel-card"], [class*="hotel_card"], [class*="property-card"], button:has-text("Book Now")', { timeout: 15000 });
+        } catch { /* cards may not appear for zero-result searches */ }
+        await recorderH.recPage.waitForTimeout(5000);
+        const mp4Path = await recorderH.finalize();
+        if (mp4Path) hotelResult.recordingPath = mp4Path;
+        logger.info('[RECORDER] Hotel recording saved for ' + (hotelResult.destination || '?'));
+      } catch (recErr) {
+        logger.error('[RECORDER] Hotel recording failed: ' + recErr.message);
+        if (recorderH) await recorderH.finalize().catch(function() {});
+        if (!hotelResult) {
           try {
-            await recorderH.recPage.waitForSelector('[class*="hotel-card"], [class*="hotel_card"], [class*="property-card"], button:has-text("Book Now")', { timeout: 15000 });
-          } catch { /* cards may not appear for zero-result searches */ }
-          await recorderH.recPage.waitForTimeout(5000);
-          const mp4Path = await recorderH.finalize();
-          if (mp4Path) hotelResult.recordingPath = mp4Path;
-          logger.info('[RECORDER] Hotel recording saved for ' + (hotelResult.destination || '?'));
-        } catch (recErr) {
-          logger.error('[RECORDER] Hotel recording failed: ' + recErr.message);
-          if (recorderH) await recorderH.finalize().catch(function() {});
-          if (!hotelResult) hotelResult = await runHotelSearchPulse(page, hotelScenario, pulseId);
+            const recFb = await createRecordingPage(browser, page, String(Math.floor(10000 + Math.random() * 90000)), 'https://new.etrav.in/hotels');
+            hotelResult = await runHotelSearchPulse(recFb.recPage, hotelScenario, pulseId);
+            await recFb.finalize().catch(() => {});
+          } catch (fbErr) {
+            hotelResult = {
+              searchId: String(Math.floor(10000 + Math.random() * 90000)),
+              label: hotelScenario.label || hotelScenario.destination,
+              scenarioId: hotelScenario.id,
+              scenarioType: hotelScenario.type || 'domestic',
+              destination: hotelScenario.destination,
+              searchStatus: 'FAILED',
+              resultCount: 0,
+              loadTimeMs: 0,
+              error: 'Recording context creation failed: ' + fbErr.message,
+              failureReason: 'AUTOMATION: Could not create browser context for parallel search.',
+              actions: []
+            };
+          }
         }
-      } else {
-        hotelResult = await runHotelSearchPulse(page, hotelScenario, pulseId);
       }
-      pulseData.hotelPulses.push(hotelResult);
+      return hotelResult;
+    }
+
+    // Build promises for ALL searches with STAGGERED starts
+    // Staggering by 8s prevents all 4 searches from hitting heavy CPU operations
+    // (pax dropdown SVG clicks, date pickers) at the same instant — eliminates the
+    // "Flight pax set: actual 0A 0C 0I" failures caused by CPU contention.
+    // Total pulse time = (4-1)*8s + max(individual time) ≈ 90-110s instead of 60s,
+    // but accuracy is preserved (per CEO guidance: prioritize accuracy over speed).
+    const STAGGER_MS = 8000;
+    const allScenarios = [
+      ...flightSearches.map(s => ({ kind: 'flight', scenario: s })),
+      ...(hotelSearches || []).map(s => ({ kind: 'hotel', scenario: s }))
+    ];
+
+    logger.info('[PULSE] Running ' + flightSearches.length + ' flight + ' + (hotelSearches||[]).length + ' hotel searches in PARALLEL (staggered ' + STAGGER_MS/1000 + 's)');
+
+    const startedPromises = allScenarios.map((item, idx) => {
+      return new Promise(resolve => setTimeout(resolve, idx * STAGGER_MS))
+        .then(() => item.kind === 'flight' ? runFlightWithRecording(item.scenario) : runHotelWithRecording(item.scenario));
+    });
+
+    const parallelResults = await Promise.allSettled(startedPromises);
+
+    // Split results back into flight/hotel arrays based on the original allScenarios order
+    for (let i = 0; i < allScenarios.length; i++) {
+      const item = allScenarios[i];
+      const r = parallelResults[i];
+      const targetArray = item.kind === 'flight' ? pulseData.flightPulses : pulseData.hotelPulses;
+      if (r.status === 'fulfilled') {
+        targetArray.push(r.value);
+      } else {
+        logger.error('[PULSE] ' + item.kind + ' promise rejected: ' + (r.reason?.message || r.reason));
+        const fallback = {
+          searchId: String(Math.floor(10000 + Math.random() * 90000)),
+          label: item.scenario.label,
+          scenarioType: item.scenario.type || 'domestic',
+          searchStatus: 'FAILED',
+          resultCount: 0,
+          loadTimeMs: 0,
+          failureReason: 'PROMISE REJECTED: ' + (r.reason?.message || 'unknown'),
+          actions: []
+        };
+        if (item.kind === 'flight') {
+          fallback.sector = (item.scenario.from || '') + '→' + (item.scenario.to || '');
+        } else {
+          fallback.destination = item.scenario.destination;
+        }
+        targetArray.push(fallback);
+      }
     }
 
     // Calculate health
