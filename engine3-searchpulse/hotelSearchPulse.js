@@ -338,12 +338,18 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
     // the same for 3 consecutive seconds. This measures when the loading UI actually stops
     // on screen (not background analytics/image requests which inflate network-based timing).
     // RULE: Duration = search click → result count stable for 3s + 1.5s buffer.
+    //
+    // CRITICAL: Etrav renders the right-side hotel cards FIRST, then the left-side filter
+    // panel (which contains "Showing N Hotels") renders 5-15s LATER. So we MUST wait for
+    // the left sidebar skeleton to disappear before reading the count, otherwise we fall
+    // back to cardCount=30 (Etrav's default page size) and report 30 for every search.
     const stabilityStart = Date.now();
     let lastSeenCount = null;
     let countStableSince = null;
     let textFound = false;
-    while (Date.now() - stabilityStart < 45000) {
-      const currentCount = await page.evaluate(() => {
+    let leftPanelLoaded = false;
+    while (Date.now() - stabilityStart < 60000) {
+      const probe = await page.evaluate(() => {
         const text = document.body.innerText || '';
         // Multi-pattern extraction (same logic as final result count)
         const patterns = [
@@ -354,25 +360,38 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
           /(\d+)\s*properties?\s*found/i,
           /Showing\s*[\(\[](\d+)[\)\]]/i
         ];
+        let count = null;
         for (const re of patterns) {
           const m = text.match(re);
-          if (m) return m[1];
+          if (m) { count = m[1]; break; }
         }
-        return null;
-      }).catch(() => null);
+        // Detect left filter sidebar loaded (skeleton boxes gone, real filter labels present)
+        // Etrav left sidebar shows price/rating/amenity filter headers once loaded.
+        const filterTextLoaded = /price\s*range|star\s*rating|amenities|hotel\s*type|guest\s*rating/i.test(text);
+        // Skeleton boxes have specific class names on Etrav
+        const skeletonCount = document.querySelectorAll(
+          '[class*="skeleton"], [class*="Skeleton"], [class*="shimmer"], [class*="Shimmer"], [class*="loader"]:not([class*="loaded"])'
+        ).length;
+        return { count, filterTextLoaded, skeletonCount };
+      }).catch(() => ({ count: null, filterTextLoaded: false, skeletonCount: 99 }));
 
-      if (currentCount !== null) {
+      if (probe.filterTextLoaded || probe.skeletonCount === 0) leftPanelLoaded = true;
+
+      if (probe.count !== null) {
         textFound = true;
-        if (currentCount === lastSeenCount) {
+        if (probe.count === lastSeenCount) {
           if (!countStableSince) countStableSince = Date.now();
           if (Date.now() - countStableSince >= 3000) break; // 3s stable = loading done
         } else {
-          lastSeenCount = currentCount;
+          lastSeenCount = probe.count;
           countStableSince = Date.now();
         }
       }
-      // Early exit: if no "Showing (N) Hotels" text found after 10s, cards/prices are already visible — don't wait 45s
-      if (!textFound && Date.now() - stabilityStart > 10000) break;
+      // Only early-exit if BOTH text not found AND left panel is loaded (no more skeletons)
+      // This means count text genuinely doesn't exist for this page — don't wait further.
+      if (!textFound && leftPanelLoaded && Date.now() - stabilityStart > 20000) break;
+      // Hard fallback: if 30s passed and still no text, wait one more cycle then break
+      if (!textFound && Date.now() - stabilityStart > 30000) break;
       await page.waitForTimeout(500);
     }
 
@@ -451,8 +470,47 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
       return candidates[0].n;
     });
     const cardCount = await countHotelResults(page);
-    result.resultCount = textCount != null ? textCount : cardCount;
-    result.actions.push(`Results: ${result.resultCount} (text=${textCount}, cards=${cardCount})`);
+    // CRITICAL: cardCount=30 is Etrav's default initial page size — it is NOT the true total.
+    // Only use cardCount as fallback if textCount is unavailable AND cardCount is NOT 30
+    // (or explicit small numbers indicating a real partial set, like 1-29).
+    // If textCount missing AND cardCount=30, do one more aggressive read attempt before settling.
+    if (textCount == null && cardCount === 30) {
+      // Final attempt: scroll page + wait + re-read text. Some Etrav pages render the
+      // "Showing N Hotels" sidebar lazily, only after user scrolls.
+      try {
+        await page.evaluate(() => window.scrollBy(0, 400));
+        await page.waitForTimeout(2500);
+        const retryText = await page.evaluate(() => {
+          const text = document.body.innerText || '';
+          const patterns = [
+            /Showing\s*[\(\[]?\s*(\d+)\s*[\)\]]?\s*Hotels?/i,
+            /Showing\s*[\(\[]?\s*(\d+)\s*[\)\]]?\s*Propert/i,
+            /(\d+)\s*hotels?\s*found/i,
+            /(\d+)\s*properties?\s*found/i,
+          ];
+          for (const re of patterns) {
+            const m = text.match(re);
+            if (m) return parseInt(m[1], 10);
+          }
+          return null;
+        });
+        if (retryText != null) {
+          result.resultCount = retryText;
+          result.actions.push(`Results: ${result.resultCount} (text=null, cards=30, retry-after-scroll=${retryText})`);
+        } else {
+          // No text found even after retry — record as cards-only with warning flag
+          result.resultCount = cardCount;
+          result.countSource = 'card-count-fallback';
+          result.actions.push(`Results: ${result.resultCount} (FALLBACK: text=null after scroll-retry, using cardCount=${cardCount}, may be page-size not true total)`);
+        }
+      } catch {
+        result.resultCount = cardCount;
+        result.actions.push(`Results: ${result.resultCount} (text=null, cards=${cardCount})`);
+      }
+    } else {
+      result.resultCount = textCount != null ? textCount : cardCount;
+      result.actions.push(`Results: ${result.resultCount} (text=${textCount}, cards=${cardCount})`);
+    }
 
     // Check for API errors
     let apiCount = 0;
