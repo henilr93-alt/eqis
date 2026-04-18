@@ -214,6 +214,12 @@ async function startSystem() {
     logger.error(`[EQIS] Dashboard failed to start: ${err.message}`);
   }
 
+  // Yield to the event loop so app.listen() can actually bind the port BEFORE
+  // we run the heavy synchronous work below (cron registration, updateClaudeMd, etc.).
+  // Without this yield, the listen callback only fires after all sync code finishes,
+  // which can take 10-30s on a fresh deploy and times out cloud healthchecks.
+  await new Promise(resolve => setImmediate(resolve));
+
   console.log(`
 ╔══════════════════════════════════════════════════════╗
 ║     ETRAV QA INTELLIGENCE SYSTEM — STARTING UP       ║
