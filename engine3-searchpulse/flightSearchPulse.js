@@ -2,7 +2,7 @@ const logger = require('../utils/logger');
 const screenshotter = require('../utils/screenshotter');
 const { evaluateSearchPulse } = require('./searchPulseEvaluator');
 const {
-  fillAutosuggest, pickReactDate, selectTripType,
+  fillAutosuggest, pickReactDate, pickFlightDateRange, selectTripType,
   clickSearchFlight, countFlightResults, getFlightResultCountFromText,
   fillFlightPax,
   toggleRoundTripFare,
@@ -120,20 +120,21 @@ async function runFlightSearchPulse(page, scenario, pulseId) {
       return result;
     }
 
-    // Departure date (depDate already computed above before try block)
-    const depOk = await pickReactDate(page, 0, depDate);
-    result.actions.push(`Departure: ${depDate.toDateString()} [${depOk ? 'OK' : 'FAIL'}]`);
+    // Date selection: round-trip uses RANGE picker (single open calendar for both dates).
+    // Etrav's roundtrip calendar shows 2 months and stays open after departure click,
+    // expecting the return click in the SAME calendar — close+reopen breaks it.
+    const isRoundTrip = (scenario.tripType === 'round-trip' || scenario.tripType === 'open-jaw') && (scenario.returnOffset || scenario.returnOffsetDays);
 
-    // Dismiss calendar/overlays after departure date selection
-    await dismissAllOverlays(page);
-
-    // Return date (if round-trip)
-    if ((scenario.tripType === 'round-trip' || scenario.tripType === 'open-jaw') && (scenario.returnOffset || scenario.returnOffsetDays)) {
+    if (isRoundTrip) {
       const retDays = (scenario.dateOffsetDays || scenario.dateOffset || 7) + (scenario.returnOffset || scenario.returnOffsetDays || 7);
       const retDate = addDays(new Date(), retDays);
-      const retOk = await pickReactDate(page, 1, retDate);
-      result.actions.push(`Return: ${retDate.toDateString()} [${retOk ? 'OK' : 'FAIL'}]`);
-      // Dismiss calendar after return date
+      const rangeOk = await pickFlightDateRange(page, depDate, retDate);
+      result.actions.push(`Departure: ${depDate.toDateString()} | Return: ${retDate.toDateString()} [${rangeOk ? 'OK' : 'FAIL'}]`);
+      await dismissAllOverlays(page);
+    } else {
+      // One-way: separate departure picker only
+      const depOk = await pickReactDate(page, 0, depDate);
+      result.actions.push(`Departure: ${depDate.toDateString()} [${depOk ? 'OK' : 'FAIL'}]`);
       await dismissAllOverlays(page);
     }
 

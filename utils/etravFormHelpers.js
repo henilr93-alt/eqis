@@ -188,6 +188,140 @@ async function pickReactDate(page, wrapperIndex, targetDate) {
   return false;
 }
 
+
+/**
+ * Pick flight Departure AND Return dates on Etrav's roundtrip calendar.
+ * Etrav's roundtrip calendar is a SINGLE range picker that shows 2 months —
+ * click departure date first, then click return date in the SAME open calendar.
+ * Trying to close+reopen between picks (like pickReactDate does) breaks because
+ * the calendar stays open after departure click.
+ */
+async function pickFlightDateRange(page, depDate, retDate) {
+  const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const months = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  const daySuffix = (d) => {
+    if (d >= 11 && d <= 13) return 'th';
+    const last = d % 10;
+    return last === 1 ? 'st' : last === 2 ? 'nd' : last === 3 ? 'rd' : 'th';
+  };
+  const buildAria = (date) =>
+    `Choose ${weekdays[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}${daySuffix(date.getDate())}, ${date.getFullYear()}`;
+
+  // Helper: navigate months and click a target day in the OPEN calendar.
+  // Uses 3-strategy click + scrollIntoView like the hotel version.
+  const clickDay = async (ariaLabel) => {
+    for (let nav = 0; nav < 18; nav++) {
+      const el = await page.$(`.react-datepicker__day[aria-label="${ariaLabel}"]:not(.react-datepicker__day--disabled)`);
+      if (el) {
+        // Wait for stable bounding box
+        await page.waitForFunction((label) => {
+          const day = document.querySelector(`.react-datepicker__day[aria-label="${label}"]:not(.react-datepicker__day--disabled)`);
+          if (!day) return false;
+          const rect = day.getBoundingClientRect();
+          return rect.width > 5 && rect.height > 5;
+        }, ariaLabel, { timeout: 5000 }).catch(() => {});
+
+        const fresh = await page.$(`.react-datepicker__day[aria-label="${ariaLabel}"]:not(.react-datepicker__day--disabled)`);
+        const target = fresh || el;
+
+        await target.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
+        await page.waitForTimeout(200);
+
+        let clicked = false;
+        try {
+          await target.click({ force: true, timeout: 5000 });
+          clicked = true;
+        } catch {}
+        if (!clicked) {
+          try {
+            const box = await target.boundingBox();
+            if (box && box.width > 0) {
+              await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+              clicked = true;
+            }
+          } catch {}
+        }
+        if (!clicked) {
+          try {
+            await target.evaluate(e => { e.scrollIntoView({ block: 'center' }); e.click(); });
+            clicked = true;
+          } catch {}
+        }
+        if (clicked) {
+          await page.waitForTimeout(500);
+          return true;
+        }
+        return false;
+      }
+      const next = await page.$('.react-datepicker__navigation--next');
+      if (!next) return false;
+      await next.click({ force: true });
+      await page.waitForTimeout(300);
+    }
+    return false;
+  };
+
+  // Force-close calendar after both dates selected
+  const forceCloseCalendar = async () => {
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    if (await page.$('.react-datepicker')) {
+      await page.mouse.click(640, 50);
+      await page.waitForTimeout(300);
+    }
+    if (await page.$('.react-datepicker')) {
+      await page.evaluate(() => {
+        document.querySelectorAll('.react-datepicker__tab-loop, .react-datepicker-popper, .react-datepicker').forEach(el => {
+          el.style.display = 'none';
+        });
+      }).catch(() => {});
+      await page.waitForTimeout(200);
+    }
+  };
+
+  // Step 1: Click the Departure wrapper to open the range picker
+  const wrappers = await page.$('.react-datepicker-wrapper');
+  if (!wrappers[0]) {
+    logger.warn('[FORM] Flight Departure date wrapper not found');
+    return false;
+  }
+  await wrappers[0].click({ force: true });
+  await page.waitForTimeout(1000);
+
+  // Verify calendar opened
+  if (!(await page.$('.react-datepicker'))) {
+    logger.warn('[FORM] Flight date picker did not open');
+    return false;
+  }
+
+  // Step 2: Click departure date in the open calendar
+  const depOk = await clickDay(buildAria(depDate));
+  if (!depOk) {
+    logger.warn(`[FORM] Could not click flight departure: ${buildAria(depDate)}`);
+    await forceCloseCalendar();
+    return false;
+  }
+  logger.info('[FORM] Flight departure date clicked: ' + depDate.toDateString());
+
+  // Step 3: Wait for the range picker to update its state after departure click
+  // The calendar STAYS OPEN — Etrav now expects the return date click in the same calendar
+  await page.waitForTimeout(700);
+
+  // Step 4: Click return date in the SAME open calendar (don't close-reopen)
+  const retOk = await clickDay(buildAria(retDate));
+  if (!retOk) {
+    logger.warn(`[FORM] Could not click flight return: ${buildAria(retDate)}`);
+    await forceCloseCalendar();
+    return false;
+  }
+  logger.info('[FORM] Flight return date clicked: ' + retDate.toDateString());
+
+  // Step 5: Force-close the calendar
+  await forceCloseCalendar();
+  return true;
+}
+
 /**
  * Pick hotel check-in AND check-out dates on Etrav's hotel page.
  * The hotel page uses a SINGLE range-mode react-datepicker opened by clicking
@@ -926,6 +1060,7 @@ module.exports = {
   dismissAllOverlays,
   fillAutosuggest,
   pickReactDate,
+  pickFlightDateRange,
   pickHotelDateRange,
   selectTripType,
   clickSearchFlight,
