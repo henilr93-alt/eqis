@@ -226,6 +226,41 @@ async function runFlightSearchPulse(page, scenario, pulseId) {
     if (issues.length > 0) {
       result.actions.push('PRE-SUBMIT WARNINGS: ' + issues.join(', ') + ' (form: ' + JSON.stringify(preSubmit) + ')');
       logger.warn('[PULSE] Pre-submit warnings for ' + scenario.from + '->' + scenario.to + ': ' + issues.join(', '));
+
+      // AUTO-RECOVERY: a miss-click during date/pax fill may have cleared the autosuggest
+      // fields. Refill them rather than submitting an empty form (which causes Etrav to
+      // crash and gets misdiagnosed downstream). One refill attempt only — if still empty,
+      // abort with proper status so we don't trigger an Etrav crash page.
+      if (!preSubmit.from || !preSubmit.to) {
+        logger.warn('[PULSE] AUTO-RECOVERY: refilling cleared autosuggest fields');
+        if (!preSubmit.from) {
+          const ok = await fillAutosuggest(page, 'Where From ?', scenario.fromCity || scenario.from);
+          result.actions.push('AUTO-RECOVERY origin refill: ' + (ok ? 'OK' : 'FAIL'));
+        }
+        if (!preSubmit.to) {
+          const ok = await fillAutosuggest(page, 'Where To ?', scenario.toCity || scenario.to);
+          result.actions.push('AUTO-RECOVERY destination refill: ' + (ok ? 'OK' : 'FAIL'));
+        }
+        // Re-validate after refill
+        const recheck = await page.evaluate(() => ({
+          from: (document.querySelector('input[placeholder="Where From ?"]') || {}).value || '',
+          to: (document.querySelector('input[placeholder="Where To ?"]') || {}).value || ''
+        })).catch(() => ({ from: '', to: '' }));
+        if (!recheck.from || !recheck.to) {
+          // Abort — submitting now would crash Etrav and produce a misleading error.
+          result.searchStatus = 'AUTOMATION_FORM_RESET';
+          result.error = 'Form fields cleared mid-fill and could not be refilled (' + (!recheck.from ? 'origin ' : '') + (!recheck.to ? 'destination' : '') + ')';
+          result.failureReason = 'AUTOMATION ISSUE: After origin/destination were filled successfully, a subsequent click during date or pax fill cleared the field(s). Auto-recovery refill also failed. Aborted to avoid triggering Etrav crash page from empty submission.';
+          logger.error('[PULSE] ' + result.error);
+          result.screenshot = await screenshotter.takeStep(page, pulseId, 'flight-pulse-' + scenario.id);
+          if (result.screenshot) {
+            const pathMod = require('path');
+            result.screenshotPath = pathMod.join(__dirname, '..', 'reports', 'journey', pulseId, 'screenshots', 'flight-pulse-' + scenario.id + '.png');
+          }
+          return result;
+        }
+        result.actions.push('AUTO-RECOVERY succeeded — fields refilled (from=' + recheck.from + ', to=' + recheck.to + ')');
+      }
     }
 
     // Click search (uses multi-strategy click in clickSearchFlight)

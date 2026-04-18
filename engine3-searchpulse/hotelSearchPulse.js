@@ -239,6 +239,31 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
           logger.warn('[PULSE] Auto-repair of hotel dates failed: ' + repairErr.message);
         }
       }
+      // AUTO-RECOVERY: if destination got cleared by a miss-click during pax/date fill,
+      // refill it. Submitting an empty destination causes Etrav to crash and produces a
+      // misleading AUTOSUGGEST_DOWN diagnosis.
+      if (issuesH.includes('destination empty')) {
+        logger.warn('[PULSE] AUTO-RECOVERY: refilling cleared hotel destination');
+        const ok = await fillAutosuggest(page, 'Hotel name or Destination', scenario.destination);
+        result.actions.push('AUTO-RECOVERY destination refill: ' + (ok ? 'OK' : 'FAIL'));
+        const recheckDest = await page.evaluate(() => {
+          const i = document.querySelector('input[placeholder="Hotel name or Destination"], input.react-autosuggest__input');
+          return i ? i.value : '';
+        }).catch(() => '');
+        if (!recheckDest) {
+          result.searchStatus = 'AUTOMATION_FORM_RESET';
+          result.error = 'Hotel destination cleared mid-fill and could not be refilled';
+          result.failureReason = 'AUTOMATION ISSUE: After destination was filled successfully, a subsequent click during date or pax fill cleared the field. Auto-recovery refill also failed. Aborted to avoid triggering Etrav crash page from empty submission.';
+          logger.error('[PULSE] ' + result.error);
+          result.screenshot = await screenshotter.takeStep(page, pulseId, 'hotel-pulse-' + scenario.id);
+          if (result.screenshot) {
+            const pathMod = require('path');
+            result.screenshotPath = pathMod.join(__dirname, '..', 'reports', 'journey', pulseId, 'screenshots', 'hotel-pulse-' + scenario.id + '.png');
+          }
+          return result;
+        }
+        result.actions.push('AUTO-RECOVERY succeeded — destination refilled (' + recheckDest + ')');
+      }
     }
 
     // Click search (uses multi-strategy click in clickSearchHotels)
