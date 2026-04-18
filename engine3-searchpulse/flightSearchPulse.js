@@ -61,6 +61,31 @@ async function runFlightSearchPulse(page, scenario, pulseId) {
     await page.waitForSelector('input[placeholder="Where From ?"], input.react-autosuggest__input', { timeout: 20000 }).catch(() => {});
     await page.waitForTimeout(2000); // Extra wait for full React hydration
 
+    // CRITICAL: Detect Etrav's "Oops! Something went wrong" crash page on the FORM itself.
+    // When Etrav's frontend crashes during navigation, the form never renders — the page
+    // shows only the error illustration + "Try Again" / "Back to Home" buttons. Without
+    // this check, we proceed to fillAutosuggest() which fails (no inputs exist), then
+    // mislabel the failure as AUTOSUGGEST_DOWN. Real diagnosis: Etrav form page crashed.
+    const formCrashCheck = await page.evaluate(() => {
+      const bodyText = document.body.innerText || '';
+      const hasCrashText = /Oops!\s*Something went wrong|An unexpected error occurred/i.test(bodyText);
+      const hasOriginInput = !!document.querySelector('input[placeholder="Where From ?"]');
+      const hasDestInput = !!document.querySelector('input[placeholder="Where To ?"]');
+      return { hasCrashText, hasOriginInput, hasDestInput };
+    }).catch(() => ({ hasCrashText: false, hasOriginInput: true, hasDestInput: true }));
+    if (formCrashCheck.hasCrashText && (!formCrashCheck.hasOriginInput || !formCrashCheck.hasDestInput)) {
+      result.searchStatus = 'ETRAV_FORM_CRASH';
+      result.error = 'Etrav form page crashed — "Oops! Something went wrong"';
+      result.failureReason = 'ETRAV PLATFORM ERROR: Flight form page rendered the crash/error illustration ("Oops! Something went wrong") instead of the search form. This is an Etrav frontend crash — agents cannot search until Etrav fixes it. Not an automation issue.';
+      logger.error('[PULSE] Flight ' + scenario.from + '->' + scenario.to + ': Etrav form crash page detected');
+      result.screenshot = await screenshotter.takeStep(page, pulseId, 'flight-pulse-' + scenario.id);
+      if (result.screenshot) {
+        const pathMod = require('path');
+        result.screenshotPath = pathMod.join(__dirname, '..', 'reports', 'journey', pulseId, 'screenshots', 'flight-pulse-' + scenario.id + '.png');
+      }
+      return result;
+    }
+
     // Dismiss ALL modals and overlays that could block form elements
     await page.evaluate(() => {
       ['.react-responsive-modal-root', '.react-responsive-modal-container', '.react-responsive-modal-overlay',

@@ -61,6 +61,28 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
     await page.waitForSelector('input.react-autosuggest__input, input[placeholder="Hotel name or Destination"]', { timeout: 20000 }).catch(() => {});
     await page.waitForTimeout(2000); // Extra wait for full React hydration
 
+    // CRITICAL: Detect Etrav's "Oops! Something went wrong" crash page on the FORM itself.
+    // When the form fails to render due to an Etrav frontend crash, fillAutosuggest()
+    // would fail and we'd mislabel it as AUTOSUGGEST_DOWN. Real diagnosis: form crashed.
+    const hotelFormCrashCheck = await page.evaluate(() => {
+      const bodyText = document.body.innerText || '';
+      const hasCrashText = /Oops!\s*Something went wrong|An unexpected error occurred/i.test(bodyText);
+      const hasDestInput = !!document.querySelector('input[placeholder="Hotel name or Destination"], input.react-autosuggest__input');
+      return { hasCrashText, hasDestInput };
+    }).catch(() => ({ hasCrashText: false, hasDestInput: true }));
+    if (hotelFormCrashCheck.hasCrashText && !hotelFormCrashCheck.hasDestInput) {
+      result.searchStatus = 'ETRAV_FORM_CRASH';
+      result.error = 'Etrav hotel form page crashed — "Oops! Something went wrong"';
+      result.failureReason = 'ETRAV PLATFORM ERROR: Hotel form page rendered the crash/error illustration ("Oops! Something went wrong") instead of the search form. This is an Etrav frontend crash — agents cannot search until Etrav fixes it. Not an automation issue.';
+      logger.error('[PULSE] Hotel ' + scenario.destination + ': Etrav form crash page detected');
+      result.screenshot = await screenshotter.takeStep(page, pulseId, 'hotel-pulse-' + scenario.id);
+      if (result.screenshot) {
+        const pathMod = require('path');
+        result.screenshotPath = pathMod.join(__dirname, '..', 'reports', 'journey', pulseId, 'screenshots', 'hotel-pulse-' + scenario.id + '.png');
+      }
+      return result;
+    }
+
     // Dismiss ALL modals and overlays
     await page.evaluate(() => {
       ['.react-responsive-modal-root', '.react-responsive-modal-container', '.react-responsive-modal-overlay',
