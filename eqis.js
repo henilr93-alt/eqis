@@ -204,6 +204,16 @@ async function startSystem() {
   state.currentSearchHealth = state.currentSearchHealth || 'UNKNOWN';
   writeState(state);
 
+  // Start dashboard FIRST so healthchecks (Railway/Render/uptime monitors) get a 200 response
+  // immediately. The rest of startup (cron registration, FRAKA setup, CLAUDE.md update) can
+  // take 10-30s and would block the healthcheck if dashboard started last.
+  try {
+    const { startDashboard } = require('./dashboard/server');
+    startDashboard();
+  } catch (err) {
+    logger.error(`[EQIS] Dashboard failed to start: ${err.message}`);
+  }
+
   console.log(`
 ╔══════════════════════════════════════════════════════╗
 ║     ETRAV QA INTELLIGENCE SYSTEM — STARTING UP       ║
@@ -275,13 +285,7 @@ async function startSystem() {
     logger.error('[EQIS] CLAUDE.md updater failed: ' + err.message);
   }
 
-  // Start dashboard web server
-  try {
-    const { startDashboard } = require('./dashboard/server');
-    startDashboard();
-  } catch (err) {
-    logger.error(`[EQIS] Dashboard failed to start: ${err.message}`);
-  }
+  // (dashboard already started at top of startSystem so healthchecks pass immediately)
 
   // No automatic boot runs — engines only run when the user
   // explicitly clicks Start on the dashboard (per-engine or master).
