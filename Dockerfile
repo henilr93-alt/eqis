@@ -20,9 +20,11 @@ COPY . .
 # Without a volume, these are ephemeral (state lost on every redeploy).
 RUN mkdir -p /app/state/fraka /app/reports/searchpulse /app/reports/journey /app/reports/recordings /app/reports/zipy /app/reports/fullbooking /app/logs
 
-# Tell EQIS to run headless (Railway has no display)
+# Sensible production defaults for cloud deployment
 ENV HEADLESS=true
 ENV NODE_ENV=production
+ENV DASHBOARD_ENABLED=true
+ENV TIMEZONE=Asia/Kolkata
 
 # Railway provides a dynamic PORT — Express should listen on it
 EXPOSE 4000

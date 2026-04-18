@@ -41,11 +41,14 @@ function startDashboard() {
   // JSON body parser (for POST endpoints)
   app.use(express.json());
 
-  // Password gate middleware (skip for SSE, static assets, and login page)
+  // Password gate middleware (skip for SSE, static assets, login page, and healthcheck)
   app.use((req, res, next) => {
     if (req.path.startsWith('/api/live')) return next();
     if (req.path.startsWith('/ui/')) return next();
     if (req.path === '/' || req.path === '/login') return next();
+    // /api/status must be publicly accessible for Railway/uptime monitor healthchecks.
+    // It returns only system health (no sensitive data), so safe to expose.
+    if (req.path === '/api/status') return next();
 
     if (PASSWORD) {
       const token = req.query.token || req.headers['x-dashboard-token'];
