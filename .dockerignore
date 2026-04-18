@@ -1,0 +1,22 @@
+# Don't bundle these into the Docker image (saves time + keeps secrets out)
+node_modules
+.git
+.gitignore
+.env
+.env.local
+*.log
+
+# Local runtime artifacts (Railway volume will hold the production versions)
+logs/
+reports/
+state/
+
+# Macos / IDE noise
+.DS_Store
+.vscode/
+.idea/
+
+# Tests / temp
+*.tmp.js
+inspect-*.js
+test-*-tmp.js

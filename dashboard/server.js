@@ -33,7 +33,9 @@ function startDashboard() {
   }
 
   const app = express();
-  const PORT = settings.DASHBOARD_PORT || 4000;
+  // Railway/Render/Heroku set process.env.PORT dynamically — respect it.
+  // Fall back to settings.DASHBOARD_PORT or 4000 for local dev.
+  const PORT = process.env.PORT || settings.DASHBOARD_PORT || 4000;
   const PASSWORD = settings.DASHBOARD_PASSWORD;
 
   // JSON body parser (for POST endpoints)
@@ -130,10 +132,13 @@ function startDashboard() {
   app.delete('/api/fraka/directives/:id', frakaDirectivesDeleteApi);
   app.get('/api/fraka/performance', frakaPerformanceApi);
 
-  app.listen(PORT, () => {
-    logger.info(`[DASHBOARD] Running at http://localhost:${PORT}`);
+  // Bind to 0.0.0.0 so platforms like Railway/Render can route external traffic.
+  // Falls back to localhost only if explicitly requested via DASHBOARD_HOST=localhost.
+  const HOST = process.env.DASHBOARD_HOST || '0.0.0.0';
+  app.listen(PORT, HOST, () => {
+    logger.info(`[DASHBOARD] Running at http://${HOST}:${PORT}`);
     console.log(`\n  ┌─────────────────────────────────────────┐`);
-    console.log(`  │  Dashboard: http://localhost:${PORT}        │`);
+    console.log(`  │  Dashboard: http://${HOST}:${PORT}             │`);
     console.log(`  └─────────────────────────────────────────┘\n`);
   });
 }
