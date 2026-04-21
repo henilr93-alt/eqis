@@ -13,7 +13,7 @@ var path = require('path');
 var { execSync } = require('child_process');
 var logger = require('./logger');
 
-var RECORD_DIR = path.join(__dirname, '..', 'reports', 'recordings');
+var RECORD_DIR = process.env.RECORDING_DIR || path.join(__dirname, '..', 'reports', 'recordings');
 var STATE_PATH = path.join(__dirname, '..', 'state', 'recordingState.json');
 
 function loadState() {
@@ -117,17 +117,39 @@ async function createRecordingPage(browser, mainPage, searchId, formUrl) {
     finalize: async function() {
       try {
         await recContext.close();
-        // Cleanup auth file
         try { fs.unlinkSync(authPath); } catch {}
-        // Convert WebM to MP4
         var webmFiles = fs.readdirSync(videoDir).filter(function(f) { return f.endsWith('.webm'); });
-        if (webmFiles.length > 0) {
-          var mp4Path = path.join(RECORD_DIR, 'session-' + searchId + '.mp4');
-          if (convertToMp4(path.join(videoDir, webmFiles[0]), mp4Path)) {
-            try { fs.rmSync(videoDir, { recursive: true }); } catch {}
-            var s = loadState(); s.recordedCount++; saveState(s);
-            return mp4Path;
+        if (webmFiles.length === 0) {
+          try { fs.rmSync(videoDir, { recursive: true }); } catch {}
+          return null;
+        }
+        var format = (process.env.RECORDING_FORMAT || 'mp4').toLowerCase();
+        var srcWebm = path.join(videoDir, webmFiles[0]);
+        if (format === 'webm') {
+          // Skip ffmpeg entirely. Modern browsers (Chrome/Edge/Firefox/Safari
+          // 14+) play WebM natively. On memory-constrained hosts (Railway
+          // 512MB), the ffmpeg WebM->MP4 step previously got OOM-killed.
+          var webmOut = path.join(RECORD_DIR, 'session-' + searchId + '.webm');
+          try {
+            fs.renameSync(srcWebm, webmOut);
+          } catch (renameErr) {
+            // Cross-device rename not allowed when RECORD_DIR is a volume
+            // mounted on a different filesystem — fall back to copy + unlink.
+            fs.copyFileSync(srcWebm, webmOut);
+            try { fs.unlinkSync(srcWebm); } catch {}
           }
+          try { fs.rmSync(videoDir, { recursive: true }); } catch {}
+          var s = loadState(); s.recordedCount++; saveState(s);
+          var size = fs.statSync(webmOut).size;
+          logger.info('[RECORDER] WebM saved: ' + webmOut + ' (' + Math.round(size / 1024) + 'KB)');
+          return webmOut;
+        }
+        // Default: convert to MP4 via ffmpeg (local dev, has enough RAM)
+        var mp4Path = path.join(RECORD_DIR, 'session-' + searchId + '.mp4');
+        if (convertToMp4(srcWebm, mp4Path)) {
+          try { fs.rmSync(videoDir, { recursive: true }); } catch {}
+          var s2 = loadState(); s2.recordedCount++; saveState(s2);
+          return mp4Path;
         }
         try { fs.rmSync(videoDir, { recursive: true }); } catch {}
         return null;
@@ -141,4 +163,33 @@ async function createRecordingPage(browser, mainPage, searchId, formUrl) {
   };
 }
 
-module.exports = { shouldRecord, createRecordingPage, RECORD_DIR };
+/**
+ * Delete recordings older than maxAgeHours (default 24h). Keeps disk usage
+ * bounded — on Railway's 500MB volume at 2-3MB per video, ~24h of serial
+ * pulses fits comfortably. Called at pulse start from searchPulseEngine.
+ */
+function cleanupOldRecordings(maxAgeHours) {
+  var cutoff = Date.now() - (maxAgeHours || 24) * 3600 * 1000;
+  var deleted = 0;
+  try {
+    if (!fs.existsSync(RECORD_DIR)) return 0;
+    var files = fs.readdirSync(RECORD_DIR);
+    for (var i = 0; i < files.length; i++) {
+      var f = files[i];
+      if (!/\.(mp4|webm)$/i.test(f)) continue;
+      var fp = path.join(RECORD_DIR, f);
+      try {
+        if (fs.statSync(fp).mtimeMs < cutoff) {
+          fs.unlinkSync(fp);
+          deleted++;
+        }
+      } catch {}
+    }
+    if (deleted > 0) logger.info('[RECORDER] Cleanup: removed ' + deleted + ' recordings older than ' + (maxAgeHours || 24) + 'h');
+  } catch (err) {
+    logger.warn('[RECORDER] Cleanup failed: ' + err.message);
+  }
+  return deleted;
+}
+
+module.exports = { shouldRecord, createRecordingPage, cleanupOldRecordings, RECORD_DIR };

@@ -11,7 +11,7 @@ const trendCache = require('../engine1-zipy/trendCache');
 const searchPulseReportBuilder = require('../reporter/searchPulseReportBuilder');
 const settings = require('../config/settings');
 const { escalateToEtravCMT, MAX_ESCALATIONS_PER_PULSE } = require('./cmtEscalator');
-const { shouldRecord, createRecordingPage } = require('../utils/sessionRecorder');
+const { shouldRecord, createRecordingPage, cleanupOldRecordings} = require('../utils/sessionRecorder');
 
 // FIX 5: Pulse lock to prevent concurrent pulse runs. A pulse can take 2-3 minutes.
 // The cron fires every 1 min — without this lock, pulses overlap and compete for resources.
@@ -154,6 +154,7 @@ async function _runSearchPulseEngineInternal() {
   };
 
   logger.info(`[PULSE] Search Pulse starting — ${pulseId}`);
+  try { cleanupOldRecordings(24); } catch (e) { logger.warn('[PULSE] cleanupOldRecordings failed: ' + e.message); }
 
   let browser = null;
 

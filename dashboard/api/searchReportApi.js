@@ -180,13 +180,14 @@ function searchReportApi(req, res) {
     let recordingSection = '';
     if (search.recordingPath) {
       const videoFilename = require('path').basename(search.recordingPath);
+      const videoMime = videoFilename.toLowerCase().endsWith('.webm') ? 'video/webm' : 'video/mp4';
       recordingSection =
         '<div class="section">' +
         '<h3 class="section-title" style="color:#7c3aed;">Session Recording</h3>' +
         '<p style="font-size:12px;color:#6b7280;margin-bottom:10px;">Full search session: form filling, search submission, and results loading.</p>' +
         '<div style="background:#000;border-radius:10px;padding:4px;text-align:center;">' +
         '<video controls playsinline style="max-width:100%;border-radius:8px;" preload="metadata">' +
-        '<source src="/api/download/recordings/' + escHtml(videoFilename) + '?token=' + escHtml(req.query.token || '') + '" type="video/mp4">' +
+        '<source src="/api/download/recordings/' + escHtml(videoFilename) + '?token=' + escHtml(req.query.token || '') + '" type="' + videoMime + '">' +
         'Your browser does not support video playback.' +
         '</video>' +
         '</div></div>';
