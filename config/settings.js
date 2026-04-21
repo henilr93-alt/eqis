@@ -39,6 +39,12 @@ function validateEnv() {
 validateEnv();
 
 module.exports = {
+  // Memory-constrained env (e.g. Railway 512MB): set MAX_PARALLEL_SEARCHES=1
+  // to run searches serially instead of 4-at-a-time. Set RECORDING_ENABLED=false
+  // to skip MP4 recording (biggest ffmpeg memory spike).
+  MAX_PARALLEL_SEARCHES: parseInt(process.env.MAX_PARALLEL_SEARCHES || '4', 10),
+  RECORDING_ENABLED: (process.env.RECORDING_ENABLED || 'true').toLowerCase() !== 'false',
+
   // Etrav
   ETRAV_BASE_URL: process.env.ETRAV_BASE_URL,
   ETRAV_AGENT_EMAIL: process.env.ETRAV_AGENT_EMAIL,

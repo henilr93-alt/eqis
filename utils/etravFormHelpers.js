@@ -419,17 +419,29 @@ async function pickFlightDateRange(page, depDate, retDate) {
     logger.warn('[FORM] Return date did NOT commit (wrapper text: "' + (retVerify.retText || '').slice(0, 80) + '"' + (retVerify.hasError ? ', error visible' : '') + ') — retrying range selection up to 3x');
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
+        // FORCE-CLOSE any lingering half-open calendar from the previous
+        // attempt so the wrapper click below actually re-opens it fresh.
+        await forceCloseCalendar();
+        await page.waitForTimeout(400);
+        // CRITICAL: page.$ (plural) — the old code had page.$ (singular) which
+        // returns a single ElementHandle, making wrappers2[0] always undefined.
+        // That silent no-op caused all 3 retries to finish in <1 second without
+        // doing anything (witnessed in search 10236-drvaydr).
         const wrappers2 = await page.$('.react-datepicker-wrapper');
         if (wrappers2[0]) {
           await wrappers2[0].click({ force: true });
-          await page.waitForTimeout(1000 + attempt * 200);
-          if (await page.$('.react-datepicker')) {
-            await clickDay(buildAria(depDate));
-            await page.waitForTimeout(700 + attempt * 300);
-            await clickDay(buildAria(retDate));
-            await page.waitForTimeout(500 + attempt * 300);
-            await forceCloseCalendar();
+          await page.waitForTimeout(1200 + attempt * 300);
+          // Verify calendar actually opened before clicking day cells
+          const cal = await page.$('.react-datepicker');
+          if (!cal) {
+            logger.warn('[FORM] Retry #' + attempt + ': calendar did not open after wrapper click');
+            continue;
           }
+          await clickDay(buildAria(depDate));
+          await page.waitForTimeout(800 + attempt * 300);
+          await clickDay(buildAria(retDate));
+          await page.waitForTimeout(600 + attempt * 300);
+          await forceCloseCalendar();
         }
       } catch (retryErr) {
         logger.warn('[FORM] Return date retry #' + attempt + ' threw: ' + retryErr.message);

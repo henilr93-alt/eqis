@@ -59,6 +59,11 @@ function convertToMp4(webmPath, mp4Path) {
  * @returns {{ recPage, finalize }} - recPage to run search on, finalize() to stop recording and get MP4 path
  */
 async function createRecordingPage(browser, mainPage, searchId, formUrl) {
+  // RECORDING_ENABLED=false (Railway/low-memory): no-op stub
+  if ((process.env.RECORDING_ENABLED || 'true').toLowerCase() === 'false') {
+    return { recPage: null, finalize: async () => null };
+  }
+
   if (!fs.existsSync(RECORD_DIR)) fs.mkdirSync(RECORD_DIR, { recursive: true });
   var videoDir = path.join(RECORD_DIR, 'tmp-' + searchId);
   if (!fs.existsSync(videoDir)) fs.mkdirSync(videoDir, { recursive: true });

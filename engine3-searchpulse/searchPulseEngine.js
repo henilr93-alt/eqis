@@ -220,11 +220,11 @@ async function _runSearchPulseEngineInternal() {
       let recorder = null;
       try {
         recorder = await createRecordingPage(browser, page, String(Math.floor(10000 + Math.random() * 90000)), 'https://new.etrav.in/flights');
-        result = await runFlightSearchPulse(recorder.recPage, flightScenario, pulseId);
+        result = await runFlightSearchPulse((recorder && recorder.recPage) || page, flightScenario, pulseId);
         try {
-          await recorder.recPage.waitForSelector('.accordion_container, .one_way_card, .round_trip_card', { timeout: 15000 });
+          await ((recorder && recorder.recPage) || page).waitForSelector('.accordion_container, .one_way_card, .round_trip_card', { timeout: 15000 });
         } catch { /* cards may not appear for zero-result searches */ }
-        await recorder.recPage.waitForTimeout(5000);
+        await ((recorder && recorder.recPage) || page).waitForTimeout(5000);
         const mp4Path = await recorder.finalize();
         if (mp4Path) result.recordingPath = mp4Path;
         logger.info('[RECORDER] Flight recording saved for ' + (result.sector || '?'));
@@ -262,7 +262,7 @@ async function _runSearchPulseEngineInternal() {
       let recorderH = null;
       try {
         recorderH = await createRecordingPage(browser, page, String(Math.floor(10000 + Math.random() * 90000)), 'https://new.etrav.in/hotels');
-        hotelResult = await runHotelSearchPulse(recorderH.recPage, hotelScenario, pulseId);
+        hotelResult = await runHotelSearchPulse((recorderH && recorderH.recPage) || page, hotelScenario, pulseId);
 
         // Wait for substantial hotel results to render (not just 1-2 skeleton cards) so the
         // recording captures the actual loaded state. Three checks in sequence:
@@ -270,7 +270,7 @@ async function _runSearchPulseEngineInternal() {
         // 2) Filter sidebar skeleton loaders are gone (no more [class*="skeleton"] visible)
         // 3) Then 8s hold for any final renders (price load, image load, etc.)
         try {
-          await recorderH.recPage.waitForFunction(() => {
+          await ((recorderH && recorderH.recPage) || page).waitForFunction(() => {
             // Count actual hotel cards that have content (not empty skeleton placeholders)
             const cards = document.querySelectorAll('[class*="hotel-card"], [class*="hotel_card"], [class*="property-card"]');
             const realCards = Array.from(cards).filter(c => {
@@ -289,7 +289,7 @@ async function _runSearchPulseEngineInternal() {
 
         // Also wait for filter skeleton loaders to disappear
         try {
-          await recorderH.recPage.waitForFunction(() => {
+          await ((recorderH && recorderH.recPage) || page).waitForFunction(() => {
             const skeletons = document.querySelectorAll('[class*="skeleton" i], [class*="loader" i], [class*="placeholder" i]');
             const visibleSkeletons = Array.from(skeletons).filter(s => s.offsetParent !== null);
             return visibleSkeletons.length === 0;
@@ -299,7 +299,7 @@ async function _runSearchPulseEngineInternal() {
         }
 
         // Final 8s hold so the video shows the fully rendered results page
-        await recorderH.recPage.waitForTimeout(8000);
+        await ((recorderH && recorderH.recPage) || page).waitForTimeout(8000);
         const mp4Path = await recorderH.finalize();
         if (mp4Path) hotelResult.recordingPath = mp4Path;
         logger.info('[RECORDER] Hotel recording saved for ' + (hotelResult.destination || '?'));
@@ -345,12 +345,23 @@ async function _runSearchPulseEngineInternal() {
 
     logger.info('[PULSE] Running ' + flightSearches.length + ' flight + ' + (hotelSearches||[]).length + ' hotel searches in PARALLEL (staggered ' + STAGGER_MS/1000 + 's)');
 
-    const startedPromises = allScenarios.map((item, idx) => {
-      return new Promise(resolve => setTimeout(resolve, idx * STAGGER_MS))
-        .then(() => item.kind === 'flight' ? runFlightWithRecording(item.scenario) : runHotelWithRecording(item.scenario));
-    });
-
-    const parallelResults = await Promise.allSettled(startedPromises);
+    // MEMORY-AWARE execution: run at most `MAX_PARALLEL_SEARCHES` searches at a
+    // time. On Railway (512MB), set MAX_PARALLEL_SEARCHES=1 to serialize —
+    // Chromium + ffmpeg + recording all fighting for the same 512MB causes OOM
+    // kills (witnessed: ffmpeg "Killed" mid-MP4, Playwright "Target crashed").
+    // Default 4 retains existing behavior for local dev.
+    const maxParallel = Math.max(1, parseInt(process.env.MAX_PARALLEL_SEARCHES || '4', 10));
+    logger.info('[PULSE] Running ' + allScenarios.length + ' searches with concurrency=' + maxParallel + ' (stagger ' + STAGGER_MS/1000 + 's)');
+    const parallelResults = [];
+    for (let batchStart = 0; batchStart < allScenarios.length; batchStart += maxParallel) {
+      const batch = allScenarios.slice(batchStart, batchStart + maxParallel);
+      const batchPromises = batch.map((item, idx) => {
+        return new Promise(resolve => setTimeout(resolve, idx * STAGGER_MS))
+          .then(() => item.kind === 'flight' ? runFlightWithRecording(item.scenario) : runHotelWithRecording(item.scenario));
+      });
+      const batchResults = await Promise.allSettled(batchPromises);
+      for (const r of batchResults) parallelResults.push(r);
+    }
 
     // Split results back into flight/hotel arrays based on the original allScenarios order
     for (let i = 0; i < allScenarios.length; i++) {
