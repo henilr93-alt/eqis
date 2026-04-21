@@ -12,6 +12,8 @@ var fs = require('fs');
 var path = require('path');
 var { execSync } = require('child_process');
 var logger = require('./logger');
+var driveStorage = null;
+try { driveStorage = require('./driveStorage'); } catch (e) { /* optional */ }
 
 var RECORD_DIR = process.env.RECORDING_DIR || path.join(__dirname, '..', 'reports', 'recordings');
 var STATE_PATH = path.join(__dirname, '..', 'state', 'recordingState.json');
@@ -142,6 +144,17 @@ async function createRecordingPage(browser, mainPage, searchId, formUrl) {
           var s = loadState(); s.recordedCount++; saveState(s);
           var size = fs.statSync(webmOut).size;
           logger.info('[RECORDER] WebM saved: ' + webmOut + ' (' + Math.round(size / 1024) + 'KB)');
+          // Optional: upload to Google Drive. On success, return the Drive URL
+          // and delete the local copy (saves disk on Railway volume).
+          if (driveStorage && driveStorage.isEnabled()) {
+            try {
+              var upload = await driveStorage.uploadRecording(webmOut, 'session-' + searchId + '.webm');
+              try { fs.unlinkSync(webmOut); } catch {}
+              return upload.previewUrl;
+            } catch (driveErr) {
+              logger.warn('[RECORDER] Drive upload failed, keeping local copy: ' + driveErr.message);
+            }
+          }
           return webmOut;
         }
         // Default: convert to MP4 via ffmpeg (local dev, has enough RAM)
@@ -149,6 +162,15 @@ async function createRecordingPage(browser, mainPage, searchId, formUrl) {
         if (convertToMp4(srcWebm, mp4Path)) {
           try { fs.rmSync(videoDir, { recursive: true }); } catch {}
           var s2 = loadState(); s2.recordedCount++; saveState(s2);
+          if (driveStorage && driveStorage.isEnabled()) {
+            try {
+              var uploadMp4 = await driveStorage.uploadRecording(mp4Path, 'session-' + searchId + '.mp4');
+              try { fs.unlinkSync(mp4Path); } catch {}
+              return uploadMp4.previewUrl;
+            } catch (driveErr) {
+              logger.warn('[RECORDER] Drive upload failed, keeping local copy: ' + driveErr.message);
+            }
+          }
           return mp4Path;
         }
         try { fs.rmSync(videoDir, { recursive: true }); } catch {}

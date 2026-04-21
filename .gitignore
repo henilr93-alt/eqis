@@ -49,3 +49,6 @@ state/fraka/techFeedback.json
 *.tmp.js
 inspect-*.js
 test-*-tmp.js
+state/gdrive-service-account.json
+state/gdrive-oauth-client.json
+state/gdrive-oauth-token.json

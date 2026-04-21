@@ -176,9 +176,25 @@ function searchReportApi(req, res) {
         '</div></div>';
     }
 
-    // Session recording (MP4 video) section
+    // Session recording section — two modes:
+    //   1. Drive URL (starts with https://drive.google.com) → embed Drive's iframe
+    //      player directly. This is used when RECORDING_STORAGE=gdrive.
+    //   2. Local file path → serve via /api/download/recordings with <video> tag.
     let recordingSection = '';
-    if (search.recordingPath) {
+    const isDriveUrl = search.recordingPath && /^https:\/\/drive\.google\.com\//i.test(search.recordingPath);
+    if (search.recordingPath && isDriveUrl) {
+      recordingSection =
+        '<div class="section">' +
+        '<h3 class="section-title" style="color:#7c3aed;">Session Recording</h3>' +
+        '<p style="font-size:12px;color:#6b7280;margin-bottom:10px;">Full search session on Google Drive. Click the expand icon in the player to watch fullscreen.</p>' +
+        '<div style="background:#000;border-radius:10px;padding:4px;">' +
+        '<iframe src="' + escHtml(search.recordingPath) + '" width="100%" height="480" frameborder="0" allow="autoplay" allowfullscreen style="border-radius:8px;"></iframe>' +
+        '</div>' +
+        '<p style="font-size:11px;color:#9ca3af;margin-top:8px;">' +
+        '<a href="' + escHtml(search.recordingPath.replace('/preview', '/view')) + '" target="_blank" style="color:#7c3aed;">Open in Drive ↗</a>' +
+        '</p>' +
+        '</div>';
+    } else if (search.recordingPath) {
       const videoFilename = require('path').basename(search.recordingPath);
       const videoMime = videoFilename.toLowerCase().endsWith('.webm') ? 'video/webm' : 'video/mp4';
       recordingSection =

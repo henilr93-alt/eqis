@@ -16,6 +16,7 @@
     "dotenv": "^16.4.0",
     "express": "^5.2.1",
     "gif-encoder-2": "^1.0.5",
+    "googleapis": "^143.0.0",
     "node-cron": "^3.0.3",
     "playwright": "1.59.1"
   },
