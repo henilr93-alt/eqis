@@ -2,7 +2,7 @@
 # Uses Microsoft's official Playwright image: Chromium + system deps + Node 20 pre-installed.
 # This avoids the headache of installing Chromium dependencies manually on Railway/Render/Fly.
 
-FROM mcr.microsoft.com/playwright:v1.43.0-jammy
+FROM mcr.microsoft.com/playwright:v1.59.1-jammy
 
 # Install ffmpeg for MP4 video conversion (sessionRecorder.js)
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
