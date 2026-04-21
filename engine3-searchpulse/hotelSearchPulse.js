@@ -5,7 +5,26 @@ const {
   fillAutosuggest, pickHotelDateRange, clickSearchHotels, countHotelResults,
   fillHotelPax,
   dismissAllOverlays,
+  isFormCrashed,
 } = require('../utils/etravFormHelpers');
+
+async function bailIfHotelCrashed(page, scenario, result, pulseId, atStep) {
+  if (await isFormCrashed(page)) {
+    result.searchStatus = 'ETRAV_FORM_CRASH';
+    result.error = 'Etrav hotel form crashed mid-fill (after ' + atStep + ')';
+    result.failureReason = 'ETRAV PLATFORM ERROR: Etrav rendered "Oops! Something went wrong" during hotel form fill (after ' + atStep + '). React error boundary fired. Aborted before triggering more downstream errors.';
+    logger.error('[PULSE] Hotel ' + scenario.destination + ': mid-fill crash at ' + atStep);
+    try {
+      result.screenshot = await screenshotter.takeStep(page, pulseId, 'hotel-pulse-' + scenario.id);
+      if (result.screenshot) {
+        const pathMod = require('path');
+        result.screenshotPath = pathMod.join(__dirname, '..', 'reports', 'journey', pulseId, 'screenshots', 'hotel-pulse-' + scenario.id + '.png');
+      }
+    } catch {}
+    return true;
+  }
+  return false;
+}
 
 function addDays(date, days) {
   const d = new Date(date);
@@ -17,7 +36,12 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
   // Compute check-in date upfront from scenario params (before try block so it's always set)
   const checkinDate = addDays(new Date(), scenario.checkinOffsetDays || scenario.checkinOffset || 10);
   const checkoutDate = addDays(checkinDate, scenario.nights || 3);
-  const searchId = String(Math.floor(10000 + Math.random() * 90000)); // unique 5-digit ID
+  // Globally-unique searchId: 5-digit base + ms-timestamp suffix (base36) + 2 random chars.
+  // The old format (5-digit only) collided every ~150 searches and caused report
+  // mismatches — search 38841 was both a Singapore hotel AND a DEL→BLR flight.
+  const searchId = String(Math.floor(10000 + Math.random() * 90000)) + '-' +
+    Date.now().toString(36).slice(-5) +
+    Math.floor(Math.random() * 1296).toString(36).padStart(2, '0');
 
   const result = {
     searchId,
@@ -121,6 +145,9 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
       return result;
     }
 
+    // CRASH CHECK after destination fill
+    if (await bailIfHotelCrashed(page, scenario, result, pulseId, 'destination fill')) return result;
+
     // Pick check-in and check-out (checkinDate/checkoutDate already computed above before try block)
     const rangeOk = await pickHotelDateRange(page, checkinDate, checkoutDate);
     result.actions.push(`Check-in: ${checkinDate.toDateString()}, Check-out: ${checkoutDate.toDateString()} [${rangeOk ? 'OK' : 'FAIL'}]`);
@@ -128,12 +155,18 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
     // Dismiss all overlays after date selection
     await dismissAllOverlays(page);
 
+    // CRASH CHECK after date pick
+    if (await bailIfHotelCrashed(page, scenario, result, pulseId, 'date pick')) return result;
+
     // Set rooms and pax
     if (scenario.roomPax && scenario.roomPax.length > 0) {
       const paxOk = await fillHotelPax(page, scenario.rooms || 1, scenario.roomPax);
       const paxLabel = scenario.roomPax.map((r, i) => `R${i + 1}:${r.adults}A${r.children > 0 ? ' ' + r.children + 'C' : ''}`).join(' ');
       result.actions.push(`Rooms & Guests: ${scenario.rooms || 1}R — ${paxLabel} [${paxOk ? 'OK' : 'FAIL'}]`);
     }
+
+    // CRASH CHECK after pax fill
+    if (await bailIfHotelCrashed(page, scenario, result, pulseId, 'pax fill')) return result;
 
     // Read back actual rooms/pax from the form to verify what was actually set
     try {

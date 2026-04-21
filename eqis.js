@@ -291,6 +291,25 @@ async function startSystem() {
     logger.error('[EQIS] CLAUDE.md updater failed: ' + err.message);
   }
 
+  // FRAKA Failure Auditor — vision-analyzes every FAILURE/SPF rated search across
+  // all 4 SearchPulse engines, decides Etrav-side vs EQIS-side, and updates the
+  // rule book + files tech proposals for confirmed automation bugs.
+  try {
+    const { runAuditCycle } = require('./fraka/tools/failureAuditor');
+    cron.schedule('*/15 * * * *', async () => {
+      logger.info('[FRAKA-AUDIT] Failure auditor triggered by cron');
+      try {
+        const result = await runAuditCycle({ hoursBack: 6, maxAudits: 5 });
+        logger.info('[FRAKA-AUDIT] Cycle complete — audited ' + result.audited + ' of ' + result.totalCandidates + ' candidates');
+      } catch (err) {
+        logger.error('[FRAKA-AUDIT] Failure auditor failed: ' + err.message);
+      }
+    }, { timezone: settings.TIMEZONE });
+    logger.info('[EQIS] FRAKA Failure Auditor registered: every 15 minutes');
+  } catch (err) {
+    logger.error('[EQIS] FRAKA Failure Auditor failed to register: ' + err.message);
+  }
+
   // (dashboard already started at top of startSystem so healthchecks pass immediately)
 
   // No automatic boot runs — engines only run when the user

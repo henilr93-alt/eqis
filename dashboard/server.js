@@ -89,6 +89,29 @@ function startDashboard() {
     rulebookLastUpdated = new Date().toISOString();
     res.json({ success: true, lastUpdated: rulebookLastUpdated });
   });
+
+  // FRAKA Failure Auditor — view rule book + audit findings, trigger on-demand audit
+  const { runAuditCycle, loadRuleBook, loadFindings } = require('../fraka/tools/failureAuditor');
+  app.get('/api/fraka/audit/rulebook', (req, res) => res.json(loadRuleBook()));
+  app.get('/api/fraka/audit/findings', (req, res) => {
+    const data = loadFindings();
+    const limit = parseInt(req.query.limit, 10) || 50;
+    const sideFilter = req.query.side; // optional: 'etrav' | 'eqis' | 'unclear'
+    let findings = data.findings.slice().reverse(); // newest first
+    if (sideFilter) findings = findings.filter(f => f.side === sideFilter);
+    findings = findings.slice(0, limit);
+    res.json({ ...data, findings });
+  });
+  app.post('/api/fraka/audit/run', async (req, res) => {
+    try {
+      const hoursBack = parseInt(req.body?.hoursBack, 10) || 6;
+      const maxAudits = parseInt(req.body?.maxAudits, 10) || 5;
+      const result = await runAuditCycle({ hoursBack, maxAudits });
+      res.json({ success: true, ...result });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
   app.get('/api/intervals', getIntervalsApi);
   app.post('/api/intervals', postIntervalsApi);
   app.get('/api/engines', getEnginesApi);

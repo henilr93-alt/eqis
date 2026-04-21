@@ -8,33 +8,81 @@ function searchReportApi(req, res) {
     const { report, type, sector, destination } = req.query;
     const history = JSON.parse(fs.readFileSync(METRICS_PATH, 'utf-8'));
 
-    // If searchId is provided, find the entry that ACTUALLY contains that searchId
-    // (defensive against duplicate report filenames when 2 pulses run in same minute)
+    // CRITICAL FIX (search 38841): old code did `history.find()` which returns the
+    // FIRST entry containing the searchId. But the legacy 5-digit searchId format
+    // (10000-99999) collides every ~150 searches, so search 38841 (a flight DEL→BLR
+    // from 2026-04-20) was being resolved to a Singapore hotel from 2026-04-16 with
+    // the same id — completely wrong report shown.
+    //
+    // Disambiguate by:
+    //   1. Find ALL entries containing the searchId
+    //   2. If multiple, prefer report filename match
+    //   3. Then narrow by sector/destination + type from the URL
+    //   4. Last resort: most recent
     let entry = null;
     if (req.query.searchId) {
       const sid = req.query.searchId;
-      entry = history.find(e => {
+      const candidates = history.filter(e => {
         const all = [...(e.flightSearches || []), ...(e.hotelSearches || [])];
         return all.some(s => s.searchId === sid);
       });
+      if (candidates.length === 1) {
+        entry = candidates[0];
+      } else if (candidates.length > 1) {
+        // Multiple entries have this searchId (collision). Disambiguate.
+        if (report) {
+          entry = candidates.find(e => e.reportPath && path.basename(e.reportPath) === report);
+        }
+        if (!entry) {
+          entry = candidates.find(e => {
+            const all = [...(e.flightSearches || []), ...(e.hotelSearches || [])];
+            const s = all.find(x => x.searchId === sid);
+            if (!s) return false;
+            if (sector && s.sector !== sector) return false;
+            if (destination && s.destination !== destination) return false;
+            if (type && s.type !== type) return false;
+            return true;
+          });
+        }
+        if (!entry) {
+          entry = candidates.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+        }
+      }
     }
-    // Fallback: match by report filename (legacy behavior for hotel/flight engines without searchId)
+    // Fallback: match by report filename (legacy behavior for entries without searchId)
     if (!entry) entry = history.find(e => e.reportPath && path.basename(e.reportPath) === report);
     if (!entry) return res.status(404).send('<h2>Report not found</h2>');
 
     const allSearches = [...(entry.flightSearches || []), ...(entry.hotelSearches || [])];
     let search = null;
-    // Match by searchId first (most precise)
-    if (req.query.searchId) search = allSearches.find(s => s.searchId === req.query.searchId);
-    // Match by destination for hotel searches (check BEFORE sector to avoid matching flight labels)
-    if (!search && destination) search = allSearches.find(s => s.destination === destination);
-    // Match by sector for flight searches (exact sector match only)
+    // Match by searchId — but ALSO verify sector/destination matches the URL context
+    // (so a colliding searchId across flight/hotel within the same entry doesn't pick
+    // the wrong one).
+    if (req.query.searchId) {
+      const matches = allSearches.filter(s => s.searchId === req.query.searchId);
+      if (matches.length === 1) {
+        search = matches[0];
+      } else if (matches.length > 1) {
+        search = matches.find(s =>
+          (sector && s.sector === sector) ||
+          (destination && s.destination === destination)
+        ) || matches[0];
+      }
+    }
+    // STRICT match by sector/destination only — never fall back to type-only or
+    // allSearches[0] (those caused cross-engine confusion).
     if (!search && sector) search = allSearches.find(s => s.sector === sector);
-    // Fallback: label match
-    if (!search && (sector || destination)) search = allSearches.find(s => s.label && s.label.includes(sector || destination));
-    if (!search && type) search = allSearches.find(s => s.type === type);
-    if (!search) search = allSearches[0];
-    if (!search) return res.status(404).send('<h2>Search not found in report</h2>');
+    if (!search && destination) search = allSearches.find(s => s.destination === destination);
+    if (!search && (sector || destination)) {
+      search = allSearches.find(s => s.label && s.label.includes(sector || destination));
+    }
+    // If we still don't have a search, return 404 rather than serving the wrong one.
+    if (!search) return res.status(404).send(
+      '<h2>Search not found in report</h2>' +
+      '<p>The search ID (' + (req.query.searchId || 'none') + ') with sector/destination ' +
+      '(' + (sector || destination || 'none') + ') was not found. ' +
+      '<a href="/">Back to dashboard</a></p>'
+    );
 
     const isSuccess = search.results > 0;
     const ltSec = (search.loadTimeMs / 1000).toFixed(1);

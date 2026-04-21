@@ -89,26 +89,44 @@ async function fillAutosuggest(page, placeholder, cityText) {
     await page.waitForTimeout(500);
 
     // Try to find a suggestion that contains the target code
+    // CRITICAL FIX: use Playwright's REAL click (mousedown/mouseup events) on the
+    // suggestion element rather than JS .click() inside page.evaluate. The JS-only
+    // click doesn't trigger all the React synthetic events that react-autosuggest
+    // needs to COMMIT the selection. Result with JS click: the input shows the
+    // typed text but React state is uncommitted — when the next form action
+    // (date picker) causes a re-render, the input reverts to empty.
     const targetCode = cityText.toUpperCase();
-    const matchedSuggestion = await page.evaluate((code) => {
+    // Find the matching suggestion's index
+    const suggestionIndex = await page.evaluate((code) => {
       const suggestions = document.querySelectorAll('.react-autosuggest__suggestion');
-      // First pass: find exact code match
-      for (const s of suggestions) {
-        const text = (s.textContent || '').toUpperCase();
-        if (text.includes('(' + code + ')') || text.includes(code)) {
-          s.click();
-          return { clicked: true, text: s.textContent.trim().substring(0, 60) };
+      for (let i = 0; i < suggestions.length; i++) {
+        const text = (suggestions[i].textContent || '').toUpperCase();
+        if (text.includes('(' + code + ')') || text.includes(code)) return i;
+      }
+      // Fallback: first suggestion
+      return suggestions.length > 0 ? 0 : -1;
+    }, targetCode);
+
+    let matchedSuggestion = { clicked: false };
+    if (suggestionIndex >= 0) {
+      // Click via Playwright (real mouse events) so react-autosuggest commits
+      const suggestionEls = await page.$$('.react-autosuggest__suggestion');
+      if (suggestionEls[suggestionIndex]) {
+        try {
+          await suggestionEls[suggestionIndex].click({ force: true, timeout: 5000 });
+          matchedSuggestion = { clicked: true };
+        } catch {
+          // Fallback to bounding-box mouse click
+          try {
+            const box = await suggestionEls[suggestionIndex].boundingBox();
+            if (box) {
+              await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+              matchedSuggestion = { clicked: true };
+            }
+          } catch {}
         }
       }
-      // Second pass: click first suggestion as fallback
-      const first = document.querySelector('.react-autosuggest__suggestion--first') ||
-                    document.querySelector('.react-autosuggest__suggestion');
-      if (first) {
-        first.click();
-        return { clicked: true, text: first.textContent.trim().substring(0, 60), fallback: true };
-      }
-      return { clicked: false };
-    }, targetCode);
+    }
 
     if (!matchedSuggestion.clicked) {
       if (attempt < 2) logger.warn(`[FORM] Autosuggest attempt ${attempt + 1}: no suggestions for "${cityText}"`);
@@ -124,6 +142,20 @@ async function fillAutosuggest(page, placeholder, cityText) {
     }, placeholder);
 
     if (selectedValue.toUpperCase().includes(targetCode)) {
+      // CRITICAL FIX (search 21881): wait for the autosuggest dropdown panel to
+      // FULLY close before returning. Etrav's React component is fragile — if
+      // the next form step (date click) fires while the panel is mid-close,
+      // Etrav's React error boundary throws "Oops! Something went wrong" and
+      // unmounts the form. 21881 (CCU→BOM round-trip) crashed exactly this way.
+      try {
+        await page.waitForFunction(() => {
+          const panel = document.querySelector('.react-autosuggest__suggestions-container--open');
+          return !panel;
+        }, { timeout: 3000 });
+      } catch {}
+      // Extra settling time for Etrav's debounced state commit (slide-out
+      // animation runs ~300ms after container is gone; React state ~500ms).
+      await page.waitForTimeout(800);
       logger.info(`[FORM] Autosuggest "${placeholder}": selected "${selectedValue}" for "${cityText}"`);
       return true;
     }
@@ -134,6 +166,22 @@ async function fillAutosuggest(page, placeholder, cityText) {
 
   logger.warn(`[FORM] Autosuggest failed for "${cityText}" in "${placeholder}" after 3 attempts`);
   return false;
+}
+
+/**
+ * Fast page-health probe: did Etrav render its "Oops! Something went wrong"
+ * crash page? Returns true if so. Used between form-fill steps to bail out
+ * early instead of continuing to click on a crashed form.
+ */
+async function isFormCrashed(page) {
+  try {
+    return await page.evaluate(() => {
+      const t = document.body.innerText || '';
+      return /Oops!\s*Something went wrong|An unexpected error occurred/i.test(t);
+    });
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -298,7 +346,10 @@ async function pickFlightDateRange(page, depDate, retDate) {
   };
 
   // Step 1: Click the Departure wrapper to open the range picker
-  const wrappers = await page.$('.react-datepicker-wrapper');
+  // BUG FIX: was `page.$` (singular) returning a single ElementHandle (not array),
+  // so `wrappers[0]` was always undefined and this function returned false silently
+  // for EVERY round-trip search. Use `page.$$` to get the array of all wrappers.
+  const wrappers = await page.$$('.react-datepicker-wrapper');
   if (!wrappers[0]) {
     logger.warn('[FORM] Flight Departure date wrapper not found');
     return false;
@@ -336,6 +387,69 @@ async function pickFlightDateRange(page, depDate, retDate) {
 
   // Step 5: Force-close the calendar
   await forceCloseCalendar();
+
+  // Step 6: VERIFY the return date actually committed to the form. Witnessed
+  // in search 14671 (DEL→IXL round-trip): clickDay succeeded on a date element,
+  // but the Return field stayed "-" with red "Return date is required" text.
+  // Etrav sometimes silently rejects range-picker clicks (e.g., when the click
+  // lands during a re-render, or the date is the same-day as departure).
+  // If the return wrapper still shows "-", retry the range selection once.
+  const retVerify = await page.evaluate(() => {
+    const wrappers = document.querySelectorAll('.react-datepicker-wrapper');
+    if (wrappers.length < 2) return { retText: '', hasError: false };
+    const retText = (wrappers[1].textContent || '').trim();
+    const bodyText = document.body.innerText || '';
+    const hasError = /return\s*date\s*is\s*required/i.test(bodyText);
+    return { retText, hasError };
+  }).catch(() => ({ retText: '', hasError: false }));
+  // CRITICAL PARSE FIX (search 84426-8u4gefg LKO→DXB INTL round-trip): the old
+  // check `retText === '-'` was WRONG. wrappers[1].textContent returns the FULL
+  // text of the wrapper — the "Return?" label + "-" placeholder + red error
+  // "Return date is required". Real value looked like:
+  //   "Return?-Return date is required"
+  // which is neither empty nor equal to '-'. Verification passed silently even
+  // though Etrav had rejected our return click — no retry fired, form submitted
+  // with empty return, got AUTOMATION_FIELD_INCOMPLETE.
+  //
+  // Fix: a COMMITTED date shows a pattern like "9 May'26" in the wrapper text.
+  // Detect commit by the date pattern; detect failure by the error text.
+  const DATE_PATTERN = /\d{1,2}\s+\w{3}\s*[''`]\s*\d{2}/;
+  const committed = DATE_PATTERN.test(retVerify.retText) && !retVerify.hasError;
+  if (!committed) {
+    logger.warn('[FORM] Return date did NOT commit (wrapper text: "' + (retVerify.retText || '').slice(0, 80) + '"' + (retVerify.hasError ? ', error visible' : '') + ') — retrying range selection up to 3x');
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const wrappers2 = await page.$('.react-datepicker-wrapper');
+        if (wrappers2[0]) {
+          await wrappers2[0].click({ force: true });
+          await page.waitForTimeout(1000 + attempt * 200);
+          if (await page.$('.react-datepicker')) {
+            await clickDay(buildAria(depDate));
+            await page.waitForTimeout(700 + attempt * 300);
+            await clickDay(buildAria(retDate));
+            await page.waitForTimeout(500 + attempt * 300);
+            await forceCloseCalendar();
+          }
+        }
+      } catch (retryErr) {
+        logger.warn('[FORM] Return date retry #' + attempt + ' threw: ' + retryErr.message);
+      }
+      const check = await page.evaluate(() => {
+        const wrappers = document.querySelectorAll('.react-datepicker-wrapper');
+        const txt = wrappers[1] ? (wrappers[1].textContent || '').trim() : '';
+        const err = /return\s*date\s*is\s*required/i.test(document.body.innerText || '');
+        return { txt, err };
+      }).catch(() => ({ txt: '', err: true }));
+      if (DATE_PATTERN.test(check.txt) && !check.err) {
+        logger.info('[FORM] Return date committed on retry #' + attempt + ': ' + check.txt.slice(0, 60));
+        return true;
+      }
+      logger.warn('[FORM] Return date retry #' + attempt + ' did not commit');
+    }
+    logger.warn('[FORM] Return date still not set after 3 retries — aborting range pick');
+    return false;
+  }
+
   return true;
 }
 
@@ -1135,6 +1249,7 @@ async function toggleRoundTripFare(page, shouldBeChecked) {
 module.exports = {
   dismissAllOverlays,
   fillAutosuggest,
+  isFormCrashed,
   pickReactDate,
   pickFlightDateRange,
   pickHotelDateRange,
