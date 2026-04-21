@@ -226,18 +226,18 @@ async function _runSearchPulseEngineInternal() {
           await ((recorder && recorder.recPage) || page).waitForSelector('.accordion_container, .one_way_card, .round_trip_card', { timeout: 15000 });
         } catch { /* cards may not appear for zero-result searches */ }
         await ((recorder && recorder.recPage) || page).waitForTimeout(5000);
-        const mp4Path = await recorder.finalize();
+        const mp4Path = await recorder.finalize(result && result.searchStatus);
         if (mp4Path) result.recordingPath = mp4Path;
         logger.info('[RECORDER] Flight recording saved for ' + (result.sector || '?'));
       } catch (recErr) {
         logger.error('[RECORDER] Flight recording failed: ' + recErr.message);
-        if (recorder) await recorder.finalize().catch(function() {});
+        if (recorder) await recorder.finalize(result && result.searchStatus).catch(function() {});
         // Fallback: run on a fresh recording context (NOT the shared main page — would conflict in parallel)
         if (!result) {
           try {
             const recFb = await createRecordingPage(browser, page, String(Math.floor(10000 + Math.random() * 90000)), 'https://new.etrav.in/flights');
             result = await runFlightSearchPulse(recFb.recPage, flightScenario, pulseId);
-            await recFb.finalize().catch(() => {});
+            await recFb.finalize(result && result.searchStatus).catch(() => {});
           } catch (fbErr) {
             result = {
               searchId: String(Math.floor(10000 + Math.random() * 90000)),
@@ -301,17 +301,17 @@ async function _runSearchPulseEngineInternal() {
 
         // Final 8s hold so the video shows the fully rendered results page
         await ((recorderH && recorderH.recPage) || page).waitForTimeout(8000);
-        const mp4Path = await recorderH.finalize();
+        const mp4Path = await recorderH.finalize(hotelResult && hotelResult.searchStatus);
         if (mp4Path) hotelResult.recordingPath = mp4Path;
         logger.info('[RECORDER] Hotel recording saved for ' + (hotelResult.destination || '?'));
       } catch (recErr) {
         logger.error('[RECORDER] Hotel recording failed: ' + recErr.message);
-        if (recorderH) await recorderH.finalize().catch(function() {});
+        if (recorderH) await recorderH.finalize(hotelResult && hotelResult.searchStatus).catch(function() {});
         if (!hotelResult) {
           try {
             const recFb = await createRecordingPage(browser, page, String(Math.floor(10000 + Math.random() * 90000)), 'https://new.etrav.in/hotels');
             hotelResult = await runHotelSearchPulse(recFb.recPage, hotelScenario, pulseId);
-            await recFb.finalize().catch(() => {});
+            await recFb.finalize(hotelResult && hotelResult.searchStatus).catch(() => {});
           } catch (fbErr) {
             hotelResult = {
               searchId: String(Math.floor(10000 + Math.random() * 90000)),

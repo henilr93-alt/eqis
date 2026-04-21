@@ -116,7 +116,11 @@ async function createRecordingPage(browser, mainPage, searchId, formUrl) {
   // plus a finalize function to stop recording and convert to MP4
   return {
     recPage: recPage,
-    finalize: async function() {
+    finalize: async function(searchStatus) {
+      // Outcome prefix for human-readable filenames: success vs failure.
+      // Anything that's not strictly SUCCESS is considered a failure for
+      // filename purposes (ZERO_RESULTS, AUTOMATION_*, ETRAV_*, FAILED, etc.)
+      var outcome = (searchStatus === 'SUCCESS') ? 'success' : 'failure';
       try {
         await recContext.close();
         try { fs.unlinkSync(authPath); } catch {}
@@ -131,7 +135,7 @@ async function createRecordingPage(browser, mainPage, searchId, formUrl) {
           // Skip ffmpeg entirely. Modern browsers (Chrome/Edge/Firefox/Safari
           // 14+) play WebM natively. On memory-constrained hosts (Railway
           // 512MB), the ffmpeg WebM->MP4 step previously got OOM-killed.
-          var webmOut = path.join(RECORD_DIR, 'session-' + searchId + '.webm');
+          var webmOut = path.join(RECORD_DIR, 'session-' + outcome + '-' + searchId + '.webm');
           try {
             fs.renameSync(srcWebm, webmOut);
           } catch (renameErr) {
@@ -148,7 +152,7 @@ async function createRecordingPage(browser, mainPage, searchId, formUrl) {
           // and delete the local copy (saves disk on Railway volume).
           if (driveStorage && driveStorage.isEnabled()) {
             try {
-              var upload = await driveStorage.uploadRecording(webmOut, 'session-' + searchId + '.webm');
+              var upload = await driveStorage.uploadRecording(webmOut, 'session-' + outcome + '-' + searchId + '.webm');
               try { fs.unlinkSync(webmOut); } catch {}
               return upload.previewUrl;
             } catch (driveErr) {
@@ -158,13 +162,13 @@ async function createRecordingPage(browser, mainPage, searchId, formUrl) {
           return webmOut;
         }
         // Default: convert to MP4 via ffmpeg (local dev, has enough RAM)
-        var mp4Path = path.join(RECORD_DIR, 'session-' + searchId + '.mp4');
+        var mp4Path = path.join(RECORD_DIR, 'session-' + outcome + '-' + searchId + '.mp4');
         if (convertToMp4(srcWebm, mp4Path)) {
           try { fs.rmSync(videoDir, { recursive: true }); } catch {}
           var s2 = loadState(); s2.recordedCount++; saveState(s2);
           if (driveStorage && driveStorage.isEnabled()) {
             try {
-              var uploadMp4 = await driveStorage.uploadRecording(mp4Path, 'session-' + searchId + '.mp4');
+              var uploadMp4 = await driveStorage.uploadRecording(mp4Path, 'session-' + outcome + '-' + searchId + '.mp4');
               try { fs.unlinkSync(mp4Path); } catch {}
               return uploadMp4.previewUrl;
             } catch (driveErr) {
