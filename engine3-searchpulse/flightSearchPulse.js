@@ -185,9 +185,54 @@ async function runFlightSearchPulse(page, scenario, pulseId) {
     if (isRoundTrip) {
       const retDays = (scenario.dateOffsetDays || scenario.dateOffset || 7) + (scenario.returnOffset || scenario.returnOffsetDays || 7);
       const retDate = addDays(new Date(), retDays);
-      const rangeOk = await pickFlightDateRange(page, depDate, retDate);
-      result.actions.push(`Departure: ${depDate.toDateString()} | Return: ${retDate.toDateString()} [${rangeOk ? 'OK' : 'FAIL'}]`);
+
+      // CRITICAL ORDER (user feedback): for round-trip the return date MUST be
+      // selected immediately after the departure date — BEFORE pax/cabin or any
+      // other form action. Previously, if pickFlightDateRange returned false on
+      // the first attempt, code proceeded to pax fill and the post-pax auto-
+      // recovery retried the date later — appeared on video as
+      // "departure → other tasks → return". That ordering also caused
+      // intermittent commit failures because Etrav's calendar gets re-rendered
+      // when the pax dropdown opens.
+      //
+      // Up to 3 inline retries here. Verify the return wrapper actually shows a
+      // committed date (pattern '9 May''26' regardless of curly/straight quote).
+      // Only when the return is confirmed do we proceed to pax/cabin. If all 3
+      // attempts fail we abort BEFORE pax fill so we never submit incomplete.
+      let rangeOk = false;
+      let returnCommitted = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        rangeOk = await pickFlightDateRange(page, depDate, retDate);
+        const verify = await page.evaluate(() => {
+          const wrappers = document.querySelectorAll('.react-datepicker-wrapper');
+          const txt = wrappers[1] ? (wrappers[1].textContent || '').trim() : '';
+          const err = /return\s*date\s*is\s*required/i.test(document.body.innerText || '');
+          return { txt, err };
+        }).catch(() => ({ txt: '', err: true }));
+        const RT_DATE_PATTERN = /\d{1,2}\s+\w{3}\s*[\u2019'\u0060]\s*\d{2}/;
+        if (RT_DATE_PATTERN.test(verify.txt) && !verify.err) {
+          returnCommitted = true;
+          result.actions.push('Departure: ' + depDate.toDateString() + ' | Return: ' + retDate.toDateString() + ' [OK on attempt ' + attempt + ']');
+          break;
+        }
+        logger.warn('[PULSE] Round-trip date attempt #' + attempt + ' did not commit return date (text: "' + (verify.txt || '').slice(0, 60) + '")');
+        result.actions.push('Round-trip date attempt #' + attempt + ': return not committed');
+        if (attempt < 3) await page.waitForTimeout(800 + attempt * 400);
+      }
       await dismissAllOverlays(page);
+
+      if (!returnCommitted) {
+        result.searchStatus = 'AUTOMATION_DATE_INCOMPLETE';
+        result.error = 'Return date could not be set on round-trip form (3 inline attempts)';
+        result.failureReason = 'AUTOMATION ISSUE: After clicking departure date for round-trip, the return date failed to commit even after 3 inline retries. Aborted BEFORE pax fill so we never submit an incomplete form. NOT an Etrav issue. Sector: ' + (scenario.from || '') + '\u2192' + (scenario.to || '') + ', dep=' + depDate.toDateString() + ', ret=' + retDate.toDateString() + '.';
+        logger.error('[PULSE] ' + result.error);
+        result.screenshot = await screenshotter.takeStep(page, pulseId, 'flight-pulse-' + scenario.id);
+        if (result.screenshot) {
+          const pathMod = require('path');
+          result.screenshotPath = pathMod.join(__dirname, '..', 'reports', 'journey', pulseId, 'screenshots', 'flight-pulse-' + scenario.id + '.png');
+        }
+        return result;
+      }
     } else {
       // One-way: separate departure picker only
       const depOk = await pickReactDate(page, 0, depDate);
