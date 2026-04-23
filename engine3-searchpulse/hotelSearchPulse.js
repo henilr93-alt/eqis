@@ -35,7 +35,11 @@ function addDays(date, days) {
 async function runHotelSearchPulse(page, scenario, pulseId) {
   // Compute check-in date upfront from scenario params (before try block so it's always set)
   const checkinDate = addDays(new Date(), scenario.checkinOffsetDays || scenario.checkinOffset || 10);
-  const checkoutDate = addDays(checkinDate, scenario.nights || 3);
+  // Same-date guard #1: hotel check-in and check-out MUST be different days.
+  // Floor nights at 1 so checkout is always at least 1 day after check-in.
+  const nightsRaw = scenario.nights || 3;
+  const nights = Math.max(1, nightsRaw);
+  const checkoutDate = addDays(checkinDate, nights);
   // Globally-unique searchId: 5-digit base + ms-timestamp suffix (base36) + 2 random chars.
   // The old format (5-digit only) collided every ~150 searches and caused report
   // mismatches — search 38841 was both a Singapore hotel AND a DEL→BLR flight.
@@ -56,7 +60,7 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
     searchUrl: '',
     destination: scenario.destination || '',
     searchDate: checkinDate.toISOString().split('T')[0],
-    nights: scenario.nights || 3,
+    nights: nights,
     rooms: scenario.rooms || 1,
     paxCount: scenario.paxLabel || ((scenario.adultsPerRoom || 2) + 'A'),
     totalAdults: scenario.totalAdults || (scenario.adultsPerRoom || 2) * (scenario.rooms || 1),
@@ -149,8 +153,64 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
     if (await bailIfHotelCrashed(page, scenario, result, pulseId, 'destination fill')) return result;
 
     // Pick check-in and check-out (checkinDate/checkoutDate already computed above before try block)
-    const rangeOk = await pickHotelDateRange(page, checkinDate, checkoutDate);
+    let rangeOk = await pickHotelDateRange(page, checkinDate, checkoutDate);
     result.actions.push(`Check-in: ${checkinDate.toDateString()}, Check-out: ${checkoutDate.toDateString()} [${rangeOk ? 'OK' : 'FAIL'}]`);
+
+    // Same-date guard #2 (RULE: hotel check-in and check-out MUST be different days):
+    // Read back the two date inputs from Etrav's form and verify they show different
+    // dates. Same-day check-in/check-out causes Etrav to reject the search silently —
+    // witnessed in recent SPF failures where the user noticed the issue on review.
+    // If same-day is detected, retry pickHotelDateRange once with nights+1. If still
+    // same-day, abort with AUTOMATION_DATE_INCOMPLETE rather than submitting.
+    try {
+      const readBack = async () => await page.evaluate(() => {
+        const inputs = document.querySelectorAll('input');
+        const dates = { checkin: '', checkout: '' };
+        for (const inp of inputs) {
+          const ph = (inp.placeholder || '').toLowerCase();
+          const val = (inp.value || '').trim();
+          if (ph.includes('check') && ph.includes('in'))  dates.checkin  = val;
+          if (ph.includes('check') && ph.includes('out')) dates.checkout = val;
+        }
+        if (!dates.checkin || !dates.checkout) {
+          // Fallback: date displays render as div text like "22 Apr'26"
+          document.querySelectorAll('div').forEach(d => {
+            if (d.children.length > 0) return;
+            const t = (d.textContent || '').trim();
+            if (/^\d{1,2}\s+\w{3}['\u2019]\d{2}$/.test(t)) {
+              if (!dates.checkin)       dates.checkin  = t;
+              else if (!dates.checkout) dates.checkout = t;
+            }
+          });
+        }
+        return dates;
+      }).catch(() => ({ checkin: '', checkout: '' }));
+
+      let d1 = await readBack();
+      if (d1.checkin && d1.checkout && d1.checkin === d1.checkout) {
+        logger.warn('[PULSE] Hotel same-date detected (' + d1.checkin + ' == ' + d1.checkout + ') — retrying with nights+1');
+        result.actions.push('Same-date check-out detected (' + d1.checkin + ') — retrying with extra night');
+        const retryCheckout = addDays(checkinDate, nights + 1);
+        rangeOk = await pickHotelDateRange(page, checkinDate, retryCheckout);
+        const d2 = await readBack();
+        if (d2.checkin && d2.checkout && d2.checkin === d2.checkout) {
+          result.searchStatus = 'AUTOMATION_DATE_INCOMPLETE';
+          result.error = 'Hotel check-in and check-out resolved to the same date';
+          result.failureReason = 'AUTOMATION ISSUE: Hotel form ended up with identical check-in and check-out dates (' + d2.checkin + '). Retry with nights+1 also failed. Aborted BEFORE submit — Etrav silently rejects same-day stays and reports SPF. NOT an Etrav issue. Destination: ' + scenario.destination + ', planned nights: ' + nights + '.';
+          logger.error('[PULSE] ' + result.error);
+          result.screenshot = await screenshotter.takeStep(page, pulseId, 'hotel-pulse-' + scenario.id);
+          if (result.screenshot) {
+            const pathMod = require('path');
+            result.screenshotPath = pathMod.join(__dirname, '..', 'reports', 'journey', pulseId, 'screenshots', 'hotel-pulse-' + scenario.id + '.png');
+          }
+          return result;
+        }
+        logger.info('[PULSE] Hotel same-date recovered — now ' + d2.checkin + ' -> ' + d2.checkout);
+        result.actions.push('Same-date recovery OK: ' + d2.checkin + ' -> ' + d2.checkout);
+      }
+    } catch (verifyErr) {
+      logger.warn('[PULSE] Hotel same-date readback threw (continuing): ' + verifyErr.message);
+    }
 
     // Dismiss all overlays after date selection
     await dismissAllOverlays(page);
