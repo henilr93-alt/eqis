@@ -211,6 +211,62 @@ async function runFlightSearchPulse(page, scenario, pulseId) {
         }
         return result;
       }
+
+      // INTL-ONLY departure-date text verification (search 59873-86vkc4n fix):
+      // pickFlightDateRange returned true because the return wrapper has SOME date —
+      // but on some INTL round-trips, Etrav's range picker misfires: our first click
+      // lands on a later day (e.g. May 7 instead of May 2), commits THAT as the
+      // range-start, then the second click either repeats or is ignored. Form ends
+      // up with WRONG departure + blank return. Order-gate catches blank return
+      // only when the return wrapper is genuinely empty.
+      //
+      // This extra check reads the departure wrapper's text and verifies it matches
+      // the date we asked for (e.g. "2 May'26"). If it doesn't, force-close calendar
+      // and retry once. If still wrong, abort.
+      if (scenario.type === 'international') {
+        const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const expectedDepShort = depDate.getDate() + ' ' + MONTHS[depDate.getMonth()] + "'" + String(depDate.getFullYear()).slice(-2);
+        // e.g. "2 May'26" — matches how Etrav renders committed dates in the wrapper
+
+        const readDepText = async () => page.evaluate(() => {
+          const wrappers = document.querySelectorAll('.react-datepicker-wrapper');
+          return wrappers[0] ? (wrappers[0].textContent || '').trim() : '';
+        }).catch(() => '');
+
+        let depText = await readDepText();
+        // Normalize straight quote vs curly apostrophe
+        const norm = (x) => (x || '').replace(/[\u2019\u0060]/g, "'");
+        const matches = (actual, expected) => norm(actual).includes(norm(expected));
+
+        if (!matches(depText, expectedDepShort)) {
+          logger.warn('[PULSE] INTL round-trip departure text mismatch. Expected "' + expectedDepShort + '", got "' + depText.slice(0, 80) + '" — retrying range pick');
+          result.actions.push('INTL dep-text mismatch (expected ' + expectedDepShort + ', got ' + depText.slice(0, 40) + ') — retrying');
+
+          try {
+            await dismissAllOverlays(page);
+            await page.waitForTimeout(600);
+            const retryOk = await pickFlightDateRange(page, depDate, retDate);
+            result.actions.push('INTL dep-text retry pickFlightDateRange: ' + (retryOk ? 'OK' : 'FAIL'));
+            depText = await readDepText();
+          } catch (retryErr) {
+            logger.warn('[PULSE] INTL dep-text retry threw: ' + retryErr.message);
+          }
+
+          if (!matches(depText, expectedDepShort)) {
+            result.searchStatus = 'AUTOMATION_DATE_INCOMPLETE';
+            result.error = 'Departure committed to wrong date on INTL round-trip';
+            result.failureReason = 'AUTOMATION ISSUE: pickFlightDateRange returned OK but the departure wrapper shows a DIFFERENT date than requested. Expected "' + expectedDepShort + '", form shows "' + depText.slice(0, 80) + '". This is a range-picker misfire where our first click landed on the wrong day cell (the return date instead of departure). Retry also failed. NOT an Etrav issue. Sector: ' + (scenario.from || '') + '\u2192' + (scenario.to || '') + '.';
+            logger.error('[PULSE] ' + result.error);
+            result.screenshot = await screenshotter.takeStep(page, pulseId, 'flight-pulse-' + scenario.id);
+            if (result.screenshot) {
+              const pathMod = require('path');
+              result.screenshotPath = pathMod.join(__dirname, '..', 'reports', 'journey', pulseId, 'screenshots', 'flight-pulse-' + scenario.id + '.png');
+            }
+            return result;
+          }
+          result.actions.push('INTL dep-text recovered: "' + depText.slice(0, 60) + '"');
+        }
+      }
     } else {
       // One-way: separate departure picker only
       const depOk = await pickReactDate(page, 0, depDate);
