@@ -5245,6 +5245,41 @@ function renderRatingDistribution() {
 }
 
 function proposalCardHtml(p, audience) {
+  const type = (p.type || '').replace(/_/g, ' ');
+  const color = audience === 'ceo' ? 'var(--accent)' : 'var(--purple)';
+  const details = p.details ? `<pre style="margin:6px 0;font-size:10px;color:var(--text-dim);white-space:pre-wrap;">${escapeHtmlText(JSON.stringify(p.details, null, 2))}</pre>` : '';
+  // Timeline: show when proposal was created + how long ago
+  const createdAt = p.createdAt ? new Date(p.createdAt) : null;
+  const timeStr = createdAt ? createdAt.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const agoMs = createdAt ? Date.now() - createdAt.getTime() : 0;
+  const agoHours = Math.floor(agoMs / 3600000);
+  const agoStr = agoHours < 1 ? 'just now' : agoHours < 24 ? agoHours + 'h ago' : Math.floor(agoHours / 24) + 'd ago';
+  const isStale = agoHours > 12;
+  return `
+    <div style="border:1px solid ${isStale ? 'var(--orange)' : 'var(--border)'};border-radius:6px;padding:12px;margin-bottom:10px;background:${isStale ? 'rgba(234,88,12,0.04)' : 'var(--surface)'};">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="background:${color};color:white;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;text-transform:uppercase;">${type}</span>
+          ${isStale ? '<span style="background:var(--orange);color:white;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600;">STALE</span>' : ''}
+        </div>
+        <span class="mono" style="font-size:10px;color:var(--text-muted);">${p.id}</span>
+      </div>
+      <div style="font-size:13px;color:var(--text);margin-bottom:4px;">${escapeHtmlText(p.description || 'No description')}</div>
+      ${p.reasoning ? `<div style="font-size:11px;color:var(--text-dim);font-style:italic;">"${escapeHtmlText(p.reasoning)}"</div>` : ''}
+      ${details}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+        <div style="font-size:10px;color:var(--text-dim);">
+          <span style="margin-right:8px;">${timeStr}</span>
+          <span style="color:${isStale ? 'var(--orange)' : 'var(--text-muted)'};">${agoStr}</span>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="approveProposal('${p.id}', '${audience}')" style="padding:5px 14px;border-radius:4px;background:var(--green);color:white;font-size:11px;font-weight:600;cursor:pointer;border:none;">\u2713 Approve</button>
+          <button onclick="rejectProposal('${p.id}', '${audience}')" style="padding:5px 14px;border-radius:4px;background:var(--red);color:white;font-size:11px;font-weight:600;cursor:pointer;border:none;">\u2717 Reject</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
 function exportRatingDistributionHTML() {
   var data = window._spPerfDataFiltered || window._spPerfData;
@@ -5321,41 +5356,6 @@ function exportRatingDistributionHTML() {
   a.download = 'EQIS-Rating-Distribution-' + (from || new Date().toISOString().slice(0,10)) + '.html';
   a.click();
   URL.revokeObjectURL(url);
-}
-  const type = (p.type || '').replace(/_/g, ' ');
-  const color = audience === 'ceo' ? 'var(--accent)' : 'var(--purple)';
-  const details = p.details ? `<pre style="margin:6px 0;font-size:10px;color:var(--text-dim);white-space:pre-wrap;">${escapeHtmlText(JSON.stringify(p.details, null, 2))}</pre>` : '';
-  // Timeline: show when proposal was created + how long ago
-  const createdAt = p.createdAt ? new Date(p.createdAt) : null;
-  const timeStr = createdAt ? createdAt.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-  const agoMs = createdAt ? Date.now() - createdAt.getTime() : 0;
-  const agoHours = Math.floor(agoMs / 3600000);
-  const agoStr = agoHours < 1 ? 'just now' : agoHours < 24 ? agoHours + 'h ago' : Math.floor(agoHours / 24) + 'd ago';
-  const isStale = agoHours > 12;
-  return `
-    <div style="border:1px solid ${isStale ? 'var(--orange)' : 'var(--border)'};border-radius:6px;padding:12px;margin-bottom:10px;background:${isStale ? 'rgba(234,88,12,0.04)' : 'var(--surface)'};">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <div style="display:flex;gap:6px;align-items:center;">
-          <span style="background:${color};color:white;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:600;text-transform:uppercase;">${type}</span>
-          ${isStale ? '<span style="background:var(--orange);color:white;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600;">STALE</span>' : ''}
-        </div>
-        <span class="mono" style="font-size:10px;color:var(--text-muted);">${p.id}</span>
-      </div>
-      <div style="font-size:13px;color:var(--text);margin-bottom:4px;">${escapeHtmlText(p.description || 'No description')}</div>
-      ${p.reasoning ? `<div style="font-size:11px;color:var(--text-dim);font-style:italic;">"${escapeHtmlText(p.reasoning)}"</div>` : ''}
-      ${details}
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
-        <div style="font-size:10px;color:var(--text-dim);">
-          <span style="margin-right:8px;">${timeStr}</span>
-          <span style="color:${isStale ? 'var(--orange)' : 'var(--text-muted)'};">${agoStr}</span>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button onclick="approveProposal('${p.id}', '${audience}')" style="padding:5px 14px;border-radius:4px;background:var(--green);color:white;font-size:11px;font-weight:600;cursor:pointer;border:none;">\u2713 Approve</button>
-          <button onclick="rejectProposal('${p.id}', '${audience}')" style="padding:5px 14px;border-radius:4px;background:var(--red);color:white;font-size:11px;font-weight:600;cursor:pointer;border:none;">\u2717 Reject</button>
-        </div>
-      </div>
-    </div>
-  `;
 }
 
 async function approveProposal(id, audience) {
