@@ -1205,7 +1205,7 @@
           </div>
           <div style="background:var(--surface);border-radius:8px;padding:12px;text-align:center;">
             <div id="spPerfDelayRate" style="font-size:24px;font-weight:700;color:var(--orange);">—</div>
-            <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;">Delay Rate (&gt;20s)</div>
+            <div style="font-size:10px;color:var(--text-dim);text-transform:uppercase;">Slow Rate (&gt;20s)</div>
           </div>
         </div>
 
@@ -1225,7 +1225,7 @@
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
             <div>
               <div style="font-size:14px;font-weight:700;color:var(--text);">Rating Distribution by Engine</div>
-              <div style="font-size:11px;color:#888;margin-top:2px;">Shows how searches are distributed across PERFECT, MEDIAN, DELAY, CRITICAL, and FAILURE ratings.</div>
+              <div style="font-size:11px;color:#888;margin-top:2px;">Shows how searches are distributed across PERFECT, MEDIAN, DELAY, CRITICAL, and FAILURE ratings. Note: the DELAY bucket here uses the engine-specific rating scale and differs from the "Slow Rate (&gt;20s)" stat above.</div>
             </div>
             <select id="ratingEngineFilter" onchange="renderRatingDistribution()" style="padding:6px 14px;border-radius:6px;background:var(--card);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:600;cursor:pointer;">
               <option value="flightDom">Flight Domestic</option>
@@ -5324,8 +5324,9 @@ function exportRatingDistributionHTML() {
         '<div class="stat-box"><div class="stat-num">' + total + '</div><div class="stat-lbl">Total Searches</div></div>' +
         '<div class="stat-box"><div class="stat-num" style="color:' + successClr + ';">' + (s.successPct||0) + '%</div><div class="stat-lbl">Success Rate</div></div>' +
         '<div class="stat-box"><div class="stat-num" style="color:#dc2626;">' + (s.failPct||0) + '%</div><div class="stat-lbl">Failure Rate</div></div>' +
-        '<div class="stat-box"><div class="stat-num" style="color:#ea580c;">' + (s.delayPct||0) + '%</div><div class="stat-lbl">Delay Rate</div></div>' +
+        '<div class="stat-box"><div class="stat-num" style="color:#ea580c;">' + (s.delayPct||0) + '%</div><div class="stat-lbl">Slow Rate (&gt;20s)</div></div>' +
       '</div>' +
+      '<div style="font-size:10px;color:#6b7280;margin-bottom:8px;">Slow Rate = searches with load time &gt;20s. DELAY rating below = bucket within the engine-specific rating scale.</div>' +
       '<table>' + rows + '</table>' +
     '</div>';
   }
