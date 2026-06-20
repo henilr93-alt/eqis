@@ -113,7 +113,6 @@ function historyApi(req, res) {
 
     const reportFolders = {
       journey: 'journey',
-      zipy: 'zipy',
       searchpulse: 'searchpulse',
       fullbooking: 'fullbooking',
     };
@@ -165,18 +164,32 @@ function historyApi(req, res) {
 }
 
 function parseReportFilename(filename, type) {
-  const match = filename.match(/(\d{4}-\d{2}-\d{2})(?:_(\d{2}-\d{2}))?/);
+  const match = filename.match(/(\d{4}-\d{2}-\d{2})(?:_(\d{2}-\d{2})(?:-(\d{2}))?)?/);
+  let date = match?.[1] || null;
+  let timePart = match?.[2] || null;
+  // FIX 2026-05-31: older filenames have "24-MM" where they should be "00-MM"
+  // (the en-CA midnight bug). Normalize both date and time so the History tab
+  // shows the correct calendar day and time.
+  if (timePart && timePart.startsWith('24-')) {
+    timePart = '00-' + timePart.slice(3);
+    // also bump the calendar day forward by 1 to reflect that "24:xx" was
+    // actually the next day's midnight
+    if (date) {
+      const d = new Date(date + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + 1);
+      date = d.toISOString().slice(0, 10);
+    }
+  }
   return {
-    date: match?.[1] || null,
-    time: match?.[2]?.replace('-', ':') || null,
-    label: buildReportLabel(type, match?.[1], match?.[2]),
+    date,
+    time: timePart ? timePart.replace('-', ':') : null,
+    label: buildReportLabel(type, date, timePart),
   };
 }
 
 function buildReportLabel(type, date, time) {
   const typeLabels = {
     journey: 'Journey Test',
-    zipy: 'Zipy Analysis',
     searchpulse: 'Search Pulse',
     fullbooking: 'Full Booking',
   };

@@ -30,7 +30,7 @@ function frakaStatusApi(req, res) {
         lastReviewAt: frakaState.lastReviewAt || null,
         lastReviewSummary: frakaState.lastReviewSummary || null,
         lastHeadlineMetrics: frakaState.lastHeadlineMetrics || null,
-        criticalAlerts: frakaState.criticalAlerts || [],
+        criticalAlerts: [], // 2026-06-14: banner permanently removed per user request (was: frakaState.criticalAlerts)
         totalReviews: frakaState.totalReviews || 0,
         approvedSpendUsd: frakaState.approvedSpendUsd || 50,
         approvedUntil: frakaState.approvedUntil || null,

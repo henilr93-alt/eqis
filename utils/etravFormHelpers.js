@@ -55,6 +55,9 @@ async function dismissAllOverlays(page) {
  * Returns true on success.
  */
 async function fillAutosuggest(page, placeholder, cityText) {
+  // Wait up to 5s for the input to be present in DOM — Etrav can briefly
+  // re-render the form after trip-type toggle or modal dismissal.
+  await page.waitForSelector(`input[placeholder="${placeholder}"]`, { timeout: 5000 }).catch(() => {});
   const input = await page.$(`input[placeholder="${placeholder}"]`);
   if (!input) {
     logger.warn(`[FORM] Autosuggest input not found: ${placeholder}`);
@@ -191,15 +194,32 @@ async function isFormCrashed(page) {
  * Returns true on success.
  */
 async function pickReactDate(page, wrapperIndex, targetDate) {
-  const wrappers = await page.$$('.react-datepicker-wrapper');
+  let wrappers = await page.$$('.react-datepicker-wrapper');
   if (!wrappers[wrapperIndex]) {
     logger.warn(`[FORM] Date picker wrapper #${wrapperIndex} not found`);
     return false;
   }
 
-  // Click to open calendar
-  await wrappers[wrapperIndex].click({ force: true });
-  await page.waitForTimeout(800);
+  // OPEN-CALENDAR RETRY (added 2026-05-25): same root issue as pickFlightDateRange —
+  // React hasn't hydrated the click handler after autosuggest commit, first click
+  // silently no-ops, calendar never opens. Retry the OPEN up to 3 times.
+  let calendarOpen = false;
+  for (let openAttempt = 1; openAttempt <= 3; openAttempt++) {
+    wrappers = await page.$$('.react-datepicker-wrapper');
+    if (!wrappers[wrapperIndex]) {
+      await page.waitForTimeout(800);
+      continue;
+    }
+    await wrappers[wrapperIndex].click({ force: true });
+    await page.waitForTimeout(800 + openAttempt * 400);
+    if (await page.$('.react-datepicker')) { calendarOpen = true; break; }
+    logger.warn(`[FORM] One-way date picker did not open on attempt ${openAttempt} — retrying`);
+    await page.waitForTimeout(1200);
+  }
+  if (!calendarOpen) {
+    logger.warn(`[FORM] One-way date picker did not open after 3 attempts — aborting`);
+    return false;
+  }
 
   // Build aria-label format used by react-datepicker:
   // "Choose Friday, April 10th, 2026"
@@ -219,37 +239,103 @@ async function pickReactDate(page, wrapperIndex, targetDate) {
   };
   const ariaLabel = `Choose ${weekday}, ${month} ${day}${daySuffix(day)}, ${year}`;
 
-  // Navigate to correct month if necessary (max 18 clicks forward)
-  for (let nav = 0; nav < 18; nav++) {
-    // Check if the target day is visible and clickable
-    const dayEl = await page.$(`.react-datepicker__day[aria-label="${ariaLabel}"]:not(.react-datepicker__day--disabled)`);
-    if (dayEl) {
-      await dayEl.click({ force: true });
-      await page.waitForTimeout(500);
-      // Dismiss the calendar after date selection — press Escape + click outside
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(300);
-      // Check if calendar is still open and force-close
-      const calendarStillOpen = await page.$('.react-datepicker');
-      if (calendarStillOpen) {
-        await page.mouse.click(640, 180); // click neutral area
+  // Helper: navigate to target day and click it. Returns true if click registered.
+  const navigateAndClick = async () => {
+    for (let nav = 0; nav < 18; nav++) {
+      const dayEl = await page.$(`.react-datepicker__day[aria-label="${ariaLabel}"]:not(.react-datepicker__day--disabled)`);
+      if (dayEl) {
+        await dayEl.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
+        await page.waitForTimeout(200);
+        // 3-STRATEGY CLICK (fix 2026-05-26 for "Element is outside of the viewport"
+        // errors on one-way searches): even with force, Playwright's click can
+        // throw if the day cell is below the fold. Fall back to bounding-box
+        // mouse click, then to JS-native click which bypasses all actionability checks.
+        let clicked = false;
+        try { await dayEl.click({ force: true, timeout: 4000 }); clicked = true; } catch {}
+        if (!clicked) {
+          try {
+            const box = await dayEl.boundingBox();
+            if (box && box.width > 0 && box.height > 0) {
+              await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+              clicked = true;
+            }
+          } catch {}
+        }
+        if (!clicked) {
+          try {
+            await dayEl.evaluate(e => { e.scrollIntoView({ block: 'center' }); e.click(); });
+            clicked = true;
+          } catch {}
+        }
+        if (!clicked) return false;
+        await page.waitForTimeout(500);
+        await page.keyboard.press('Escape');
         await page.waitForTimeout(300);
+        const calendarStillOpen = await page.$('.react-datepicker');
+        if (calendarStillOpen) {
+          await page.mouse.click(640, 180);
+          await page.waitForTimeout(300);
+        }
+        return true;
       }
-      return true;
+      const header = await page.$('.react-datepicker__current-month, .react-datepicker__header');
+      if (!header) return false;
+      const nextBtn = await page.$('.react-datepicker__navigation--next');
+      if (!nextBtn) return false;
+      await nextBtn.click({ force: true });
+      await page.waitForTimeout(300);
     }
+    return false;
+  };
 
-    // Check current visible month header
-    const header = await page.$('.react-datepicker__current-month, .react-datepicker__header');
-    if (!header) break;
-
-    // Click "Next Month"
-    const nextBtn = await page.$('.react-datepicker__navigation--next');
-    if (!nextBtn) break;
-    await nextBtn.click({ force: true });
-    await page.waitForTimeout(300);
+  // First attempt
+  let clicked = await navigateAndClick();
+  if (!clicked) {
+    logger.warn(`[FORM] Could not find date ${ariaLabel} in calendar after 18 forward navigations`);
+    return false;
   }
 
-  logger.warn(`[FORM] Could not find date ${ariaLabel} in calendar after 18 forward navigations`);
+  // READBACK VERIFICATION + RETRY (added 2026-05-25 to stop one-way SPF flood):
+  // A successful click on the day cell does NOT guarantee Etrav's React state
+  // accepted the value — under load or during a re-render, the click is silently
+  // dropped and the wrapper text stays "-". Without this verify, the form submits
+  // with empty departure → AUTOMATION_FIELD_INCOMPLETE ("departure-date-missing").
+  //
+  // A committed date renders in the wrapper text as e.g. "9 May'26".
+  const DATE_PATTERN = /\d{1,2}\s+\w{3}\s*[''`\u2019]\s*\d{2}/;
+  const readWrapperText = async () => {
+    const wrappers2 = await page.$$('.react-datepicker-wrapper');
+    if (!wrappers2[wrapperIndex]) return '';
+    return (await wrappers2[wrapperIndex].evaluate(el => (el.textContent || '').trim())).slice(0, 80);
+  };
+
+  let wrapperText = await readWrapperText();
+  if (DATE_PATTERN.test(wrapperText)) return true;
+
+  // Click did not commit — retry up to 2 more times with re-opened calendar
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    logger.warn(`[FORM] One-way date click did not commit on attempt ${attempt} (wrapper text: "${wrapperText}") — retrying`);
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(300);
+    const wrappersRetry = await page.$$('.react-datepicker-wrapper');
+    if (!wrappersRetry[wrapperIndex]) return false;
+    await wrappersRetry[wrapperIndex].click({ force: true });
+    await page.waitForTimeout(800 + attempt * 300);
+    if (!(await page.$('.react-datepicker'))) {
+      logger.warn(`[FORM] One-way date picker did not reopen on retry ${attempt}`);
+      continue;
+    }
+    clicked = await navigateAndClick();
+    if (!clicked) continue;
+    await page.waitForTimeout(400);
+    wrapperText = await readWrapperText();
+    if (DATE_PATTERN.test(wrapperText)) {
+      logger.info(`[FORM] One-way date committed on retry ${attempt}: ${wrapperText}`);
+      return true;
+    }
+  }
+
+  logger.warn(`[FORM] One-way date STILL not committed after 2 retries (last wrapper text: "${wrapperText}")`);
   return false;
 }
 
@@ -349,17 +435,34 @@ async function pickFlightDateRange(page, depDate, retDate) {
   // BUG FIX: was `page.$` (singular) returning a single ElementHandle (not array),
   // so `wrappers[0]` was always undefined and this function returned false silently
   // for EVERY round-trip search. Use `page.$$` to get the array of all wrappers.
-  const wrappers = await page.$$('.react-datepicker-wrapper');
+  let wrappers = await page.$$('.react-datepicker-wrapper');
   if (!wrappers[0]) {
     logger.warn('[FORM] Flight Departure date wrapper not found');
     return false;
   }
-  await wrappers[0].click({ force: true });
-  await page.waitForTimeout(1000);
 
-  // Verify calendar opened
-  if (!(await page.$('.react-datepicker'))) {
-    logger.warn('[FORM] Flight date picker did not open');
+  // OPEN-CALENDAR RETRY (added 2026-05-25): React hasn't fully hydrated the date
+  // picker's click handler immediately after autosuggest commits — the first
+  // wrapper click silently fails ~80% of the time and `.react-datepicker` never
+  // appears, causing this function to return false BEFORE any retry budget can
+  // fire. Retry the OPEN up to 3 times with progressively longer settling waits.
+  let calendarOpen = false;
+  for (let openAttempt = 1; openAttempt <= 3; openAttempt++) {
+    // Re-fetch in case React re-rendered the form between attempts
+    wrappers = await page.$$('.react-datepicker-wrapper');
+    if (!wrappers[0]) {
+      logger.warn('[FORM] Flight Departure wrapper disappeared on attempt ' + openAttempt);
+      await page.waitForTimeout(1000);
+      continue;
+    }
+    await wrappers[0].click({ force: true });
+    await page.waitForTimeout(800 + openAttempt * 400);
+    if (await page.$('.react-datepicker')) { calendarOpen = true; break; }
+    logger.warn('[FORM] Flight date picker did not open on attempt ' + openAttempt + ' — settling 1.5s before retry');
+    await page.waitForTimeout(1500);
+  }
+  if (!calendarOpen) {
+    logger.warn('[FORM] Flight date picker did not open after 3 attempts — aborting');
     return false;
   }
 
@@ -372,9 +475,24 @@ async function pickFlightDateRange(page, depDate, retDate) {
   }
   logger.info('[FORM] Flight departure date clicked: ' + depDate.toDateString());
 
-  // Step 3: Wait for the range picker to update its state after departure click
-  // The calendar STAYS OPEN — Etrav now expects the return date click in the same calendar
-  await page.waitForTimeout(700);
+  // Step 3: Wait for Etrav React to COMMIT the departure click before clicking return.
+  // 700ms (old value) was too short — the return click landed before Etrav had
+  // updated its internal range state, so Etrav silently rejected the return
+  // (witnessed: wrapper text stayed "Return?-" after every retry). Increased to
+  // 2000ms + active poll on departure-wrapper commit, max 5s total.
+  const DEP_PATTERN = /\d{1,2}\s+\w{3}\s*[''`\u2019]\s*\d{2}/;
+  await page.waitForTimeout(2000);
+  for (let depPoll = 0; depPoll < 6; depPoll++) {
+    const depWrapText = await page.evaluate(() => {
+      const w = document.querySelectorAll('.react-datepicker-wrapper');
+      return w[0] ? (w[0].textContent || '').trim().slice(0, 60) : '';
+    }).catch(() => '');
+    if (DEP_PATTERN.test(depWrapText)) {
+      logger.info('[FORM] Departure committed before return click: ' + depWrapText);
+      break;
+    }
+    if (depPoll < 5) await page.waitForTimeout(500);
+  }
 
   // Step 4: Click return date in the SAME open calendar (don't close-reopen)
   const retOk = await clickDay(buildAria(retDate));
@@ -423,11 +541,11 @@ async function pickFlightDateRange(page, depDate, retDate) {
         // attempt so the wrapper click below actually re-opens it fresh.
         await forceCloseCalendar();
         await page.waitForTimeout(400);
-        // CRITICAL: page.$ (plural) — the old code had page.$ (singular) which
+        // CRITICAL: page.$$ (plural) — the old code had page.$ (singular) which
         // returns a single ElementHandle, making wrappers2[0] always undefined.
         // That silent no-op caused all 3 retries to finish in <1 second without
-        // doing anything (witnessed in search 10236-drvaydr).
-        const wrappers2 = await page.$('.react-datepicker-wrapper');
+        // doing anything (witnessed in search 10236-drvaydr). FIXED 2026-05-25.
+        const wrappers2 = await page.$$('.react-datepicker-wrapper');
         if (wrappers2[0]) {
           await wrappers2[0].click({ force: true });
           await page.waitForTimeout(1200 + attempt * 300);
@@ -437,8 +555,30 @@ async function pickFlightDateRange(page, depDate, retDate) {
             logger.warn('[FORM] Retry #' + attempt + ': calendar did not open after wrapper click');
             continue;
           }
-          await clickDay(buildAria(depDate));
-          await page.waitForTimeout(800 + attempt * 300);
+          // CRITICAL FIX 2026-05-30: do NOT re-click the departure date on retry.
+          // Witnessed in search 51581-85kuc7q DEL→BOM and 4 other round-trips —
+          // Etrav's range picker TOGGLES off the committed range start when you
+          // re-click an already-selected start day, so the subsequent return
+          // click lands with no valid range start and Etrav silently rejects it.
+          // Strategy: re-open calendar (departure is already committed in form
+          // state from the original click), then click return ONLY.
+          //
+          // Sanity-check that departure is still committed before clicking ret;
+          // if it got cleared by the reopen, fall back to the old dep+ret path
+          // for this attempt only.
+          const depStillCommitted = await page.evaluate(() => {
+            const w = document.querySelectorAll('.react-datepicker-wrapper');
+            if (!w[0]) return false;
+            const t = (w[0].textContent || '').trim();
+            return /\d{1,2}\s+\w{3}\s*['\u2019]\s*\d{2}/.test(t);
+          }).catch(() => false);
+          if (!depStillCommitted) {
+            logger.warn('[FORM] Retry #' + attempt + ': departure wrapper empty — falling back to dep+ret click');
+            await clickDay(buildAria(depDate));
+            await page.waitForTimeout(800 + attempt * 300);
+          } else {
+            logger.info('[FORM] Retry #' + attempt + ': departure still committed, clicking RETURN only');
+          }
           await clickDay(buildAria(retDate));
           await page.waitForTimeout(600 + attempt * 300);
           await forceCloseCalendar();
@@ -458,7 +598,96 @@ async function pickFlightDateRange(page, depDate, retDate) {
       }
       logger.warn('[FORM] Return date retry #' + attempt + ' did not commit');
     }
-    logger.warn('[FORM] Return date still not set after 3 retries — aborting range pick');
+    logger.warn('[FORM] Return date still not set after 3 retries — trying separate-wrapper fallback');
+
+    // FINAL FALLBACK 2026-05-31 (per CEO escalation #2 prescription option b):
+    // Etrav's range-mode calendar is silently rejecting our return-day click on
+    // some round-trip pairs. Bypass it: open the SECOND date wrapper directly
+    // (the Return field has its own picker, mirroring the hotel Check-In /
+    // Check-Out separate-wrapper pattern that already works). Click the return
+    // date inside that NEW calendar, close, and verify the wrapper text commits.
+    try {
+      await forceCloseCalendar();
+      await page.waitForTimeout(800);
+      const wrappersF = await page.$$('.react-datepicker-wrapper');
+      if (wrappersF[1]) {
+        logger.info('[FORM] Separate-wrapper fallback: opening RETURN wrapper directly');
+        await wrappersF[1].click({ force: true });
+        await page.waitForTimeout(1200);
+        if (await page.$('.react-datepicker')) {
+          const fbOk = await clickDay(buildAria(retDate));
+          await page.waitForTimeout(700);
+          await forceCloseCalendar();
+          const fbCheck = await page.evaluate(() => {
+            const w = document.querySelectorAll('.react-datepicker-wrapper');
+            const txt = w[1] ? (w[1].textContent || '').trim() : '';
+            const err = /return\s*date\s*is\s*required/i.test(document.body.innerText || '');
+            return { txt, err };
+          }).catch(() => ({ txt: '', err: true }));
+          if (DATE_PATTERN.test(fbCheck.txt) && !fbCheck.err) {
+            logger.info('[FORM] Separate-wrapper fallback SUCCEEDED — return committed: ' + fbCheck.txt.slice(0, 60));
+            return true;
+          }
+          logger.warn('[FORM] Separate-wrapper fallback also failed (wrapper text: "' + fbCheck.txt.slice(0, 80) + '")');
+        } else {
+          logger.warn('[FORM] Separate-wrapper fallback: return wrapper click did not open a calendar');
+        }
+      } else {
+        logger.warn('[FORM] Separate-wrapper fallback: wrappers[1] not found — round-trip form may only expose 1 wrapper');
+      }
+    } catch (fbErr) {
+      logger.warn('[FORM] Separate-wrapper fallback threw: ' + fbErr.message);
+    }
+
+    // LAST-RESORT FALLBACK 2026-06-02 (per CEO Directive #3 escalation #3, FINAL):
+    // Bypass clicks entirely — set the return-date input value programmatically via
+    // React's internal _valueTracker. Same pattern proven in passengerFormHelpers.js.
+    try {
+      const monthAbbrs = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const retStr = retDate.getDate() + ' ' + monthAbbrs[retDate.getMonth()] + "'" + String(retDate.getFullYear()).slice(-2);
+      logger.info('[FORM] _valueTracker fallback: forcing return input to "' + retStr + '"');
+      await forceCloseCalendar().catch(() => {});
+      const vtCommit = await page.evaluate((retStr) => {
+        const wrappers = document.querySelectorAll('.react-datepicker-wrapper');
+        const candidates = [];
+        if (wrappers[1]) {
+          const inp = wrappers[1].querySelector('input');
+          if (inp) candidates.push(inp);
+        }
+        const allDpInputs = document.querySelectorAll('.react-datepicker__input-container input, .react-datepicker-wrapper input');
+        for (const inp of allDpInputs) {
+          if (!candidates.includes(inp) && (!inp.value || /^[\s\-]*$/.test(inp.value))) candidates.push(inp);
+        }
+        for (const inp of candidates) {
+          try {
+            const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+            if (inp._valueTracker) inp._valueTracker.setValue('');
+            setter.call(inp, retStr);
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+            inp.dispatchEvent(new Event('change', { bubbles: true }));
+            inp.dispatchEvent(new Event('blur', { bubbles: true }));
+          } catch {}
+        }
+        return { tried: candidates.length, value: candidates[0] ? candidates[0].value : '' };
+      }, retStr);
+      logger.info('[FORM] _valueTracker fallback: set on ' + vtCommit.tried + ' input(s), value="' + vtCommit.value + '"');
+      await page.waitForTimeout(700);
+      const vtCheck = await page.evaluate(() => {
+        const w = document.querySelectorAll('.react-datepicker-wrapper');
+        const txt = w[1] ? (w[1].textContent || '').trim() : '';
+        const err = /return\s*date\s*is\s*required/i.test(document.body.innerText || '');
+        return { txt, err };
+      }).catch(() => ({ txt: '', err: true }));
+      if (DATE_PATTERN.test(vtCheck.txt) && !vtCheck.err) {
+        logger.info('[FORM] _valueTracker fallback SUCCEEDED — return committed: ' + vtCheck.txt.slice(0, 60));
+        return true;
+      }
+      logger.warn('[FORM] _valueTracker fallback also failed (wrapper text: "' + vtCheck.txt.slice(0, 80) + '")');
+    } catch (vtErr) {
+      logger.warn('[FORM] _valueTracker fallback threw: ' + vtErr.message);
+    }
+
+    logger.warn('[FORM] Return date still not set after 3 retries + separate-wrapper + _valueTracker — aborting range pick');
     return false;
   }
 
@@ -574,49 +803,62 @@ async function pickHotelDateRange(page, checkinDate, checkoutDate) {
     return false;
   };
 
-  // Step 1: Click the Check-In label to open the range picker
-  const checkInLabel = await page.evaluateHandle(() =>
-    Array.from(document.querySelectorAll('label'))
-      .find(l => /check\s*-\s*in/i.test(l.textContent || '')) || null
-  );
-  const labelEl = checkInLabel.asElement();
-  if (!labelEl) {
-    logger.warn('[FORM] Hotel Check-In label not found');
-    return false;
-  }
-  await labelEl.click({ force: true });
-  await page.waitForTimeout(1000);
-
-  // Verify calendar opened
-  if (!(await page.$('.react-datepicker'))) {
-    logger.warn('[FORM] Hotel date picker did not open');
-    return false;
-  }
-
-  // Step 2: Click check-in date
-  const inOk = await clickDay(buildAria(checkinDate));
-  if (!inOk) {
-    logger.warn(`[FORM] Could not click hotel check-in: ${buildAria(checkinDate)}`);
+  // SEQUENTIAL DATE FLOW (changed 2026-05-28 per CEO directive on ideal hotel
+  // search UX): the previous implementation opened ONE range-picker calendar via
+  // the Check-In label and clicked BOTH dates inside that single open calendar.
+  // The CEO's spec is: click Check-In tab -> pick date -> CLOSE; click Check-Out
+  // tab -> pick date -> CLOSE. This mirrors how a human agent uses the form.
+  // It also fixes the BOTH-EMPTY race where the range mode silently dropped
+  // both clicks (witnessed in search 61554-e1gznwp, Bangkok hotel SPF).
+  //
+  // Helper used by both steps below:
+  const openAndClick = async (labelRegex, targetDate, labelName) => {
+    // Open the relevant date tab
+    const handle = await page.evaluateHandle((labelSrc) => {
+      const re = new RegExp(labelSrc, 'i');
+      return Array.from(document.querySelectorAll('label'))
+        .find(l => re.test(l.textContent || '')) || null;
+    }, labelRegex.source);
+    const el = handle.asElement();
+    if (!el) {
+      logger.warn('[FORM] Hotel ' + labelName + ' label not found');
+      return false;
+    }
+    // Open the calendar — retry up to 3 times in case React isn't hydrated yet
+    let opened = false;
+    for (let openAttempt = 1; openAttempt <= 3; openAttempt++) {
+      await el.click({ force: true });
+      await page.waitForTimeout(700 + openAttempt * 400);
+      if (await page.$('.react-datepicker')) { opened = true; break; }
+      logger.warn('[FORM] Hotel ' + labelName + ' calendar did not open on attempt ' + openAttempt);
+      await page.waitForTimeout(800);
+    }
+    if (!opened) {
+      logger.warn('[FORM] Hotel ' + labelName + ' calendar never opened after 3 attempts');
+      return false;
+    }
+    // Click the target date
+    const clicked = await clickDay(buildAria(targetDate));
+    if (!clicked) {
+      logger.warn('[FORM] Could not click hotel ' + labelName + ': ' + buildAria(targetDate));
+      await forceCloseCalendar();
+      return false;
+    }
+    logger.info('[FORM] Hotel ' + labelName + ' clicked: ' + targetDate.toDateString());
+    // Close BEFORE moving to the next tab — the CEO's flow is one-at-a-time
     await forceCloseCalendar();
-    return false;
-  }
-  logger.info('[FORM] Hotel check-in date clicked: ' + checkinDate.toDateString());
+    // Settle wait so React commits the value before we open the next tab
+    await page.waitForTimeout(700);
+    return true;
+  };
 
-  // Step 3: The calendar stays open — now click checkout date in the same calendar
-  // Short wait for React to process the check-in selection
-  await page.waitForTimeout(500);
+  // Step 1: Click Check-In tab -> pick date -> close
+  const inOk = await openAndClick(/check\s*-\s*in/, checkinDate, 'check-in');
+  if (!inOk) return false;
 
-  // Step 4: Click checkout date in the same open calendar
-  const outOk = await clickDay(buildAria(checkoutDate));
-  if (!outOk) {
-    logger.warn(`[FORM] Could not click hotel check-out: ${buildAria(checkoutDate)}`);
-    await forceCloseCalendar();
-    return false;
-  }
-  logger.info('[FORM] Hotel check-out date clicked: ' + checkoutDate.toDateString());
-
-  // Step 5: Force-close the calendar
-  await forceCloseCalendar();
+  // Step 2: Click Check-Out tab -> pick date -> close
+  const outOk = await openAndClick(/check\s*-\s*out/, checkoutDate, 'check-out');
+  if (!outOk) return false;
 
   return true;
 }
@@ -823,22 +1065,24 @@ async function countHotelResults(page) {
  */
 async function readPaxRowCount(page, rowLabel) {
   return page.evaluate((label) => {
-    // Find the row that starts with this label text
-    const divs = document.querySelectorAll('div');
-    for (const d of divs) {
-      const t = d.textContent.trim();
-      if (t.startsWith(label) && t.length < 50) {
-        // Go up to the row container (parent of parent)
-        const row = d.parentElement?.parentElement;
-        if (!row) continue;
-        // Find the count div — a leaf div whose text is just a digit
-        let count = -1;
-        row.querySelectorAll('div').forEach(cd => {
-          if (cd.children.length === 0 && /^\d+$/.test(cd.textContent.trim())) {
-            count = parseInt(cd.textContent.trim(), 10);
-          }
-        });
-        if (count >= 0) return count;
+    // Find leaf divs whose trimmed text equals the row label exactly.
+    // Exact-match avoids picking up "Adults" inside descriptive copy and
+    // survives DOM shifts when the cabin-class dropdown opens above pax rows.
+    const leafLabels = Array.from(document.querySelectorAll('div')).filter(d =>
+      d.children.length === 0 && d.textContent.trim() === label
+    );
+    for (const lbl of leafLabels) {
+      // Climb up to 5 ancestors looking for the row that contains both this
+      // label AND ≥2 SVGs (the +/- buttons) AND a digit cell. Anchors on
+      // structural shape, not on a fixed parent depth.
+      let row = lbl.parentElement;
+      for (let i = 0; i < 5 && row; i++, row = row.parentElement) {
+        const svgs = row.querySelectorAll('svg');
+        if (svgs.length < 2) continue;
+        const digitCell = Array.from(row.querySelectorAll('div')).find(cd =>
+          cd.children.length === 0 && /^\d+$/.test(cd.textContent.trim())
+        );
+        if (digitCell) return parseInt(digitCell.textContent.trim(), 10);
       }
     }
     return -1;
@@ -855,17 +1099,21 @@ async function readPaxRowCount(page, rowLabel) {
  * @param {'plus'|'minus'} direction
  */
 async function clickPaxButton(page, rowLabel, direction) {
-  // Get the bounding box of the target SVG
+  // Get the bounding box of the target SVG using the same exact-label +
+  // climb-until-svg-pair anchoring as readPaxRowCount, so reads and clicks
+  // always resolve to the same row even after the cabin-class dropdown
+  // mutates the dropdown DOM.
   const box = await page.evaluate((args) => {
     const { label, dir } = args;
-    const divs = document.querySelectorAll('div');
-    for (const d of divs) {
-      const t = d.textContent.trim();
-      if (t.startsWith(label) && t.length < 50) {
-        const row = d.parentElement?.parentElement;
-        if (!row) continue;
+    const leafLabels = Array.from(document.querySelectorAll('div')).filter(d =>
+      d.children.length === 0 && d.textContent.trim() === label
+    );
+    for (const lbl of leafLabels) {
+      let row = lbl.parentElement;
+      for (let i = 0; i < 5 && row; i++, row = row.parentElement) {
         const svgs = row.querySelectorAll('svg');
         if (svgs.length < 2) continue;
+        // First two SVGs in document order are the minus/plus pair.
         const svg = dir === 'plus' ? svgs[1] : svgs[0];
         const rect = svg.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0) {
@@ -950,6 +1198,13 @@ async function fillFlightPax(page, pax, cabinClass) {
 
     await page.waitForTimeout(300);
 
+    // Verify final pax counts BEFORE cabin selection — opening the cabin
+    // dropdown mutates the dropdown DOM and invalidates row references,
+    // which was producing the spurious "actual 0A 0C 0I" reads.
+    const finalA = await readPaxRowCount(page, 'Adults');
+    const finalC = await readPaxRowCount(page, 'Child');
+    const finalI = await readPaxRowCount(page, 'Infants');
+
     // Select cabin class inside the traveller dropdown (Class Type dropdown)
     // Etrav options: Economy, Premium Economy, Business Class, First Class
     if (cabinClass && cabinClass !== 'Economy') {
@@ -995,11 +1250,6 @@ async function fillFlightPax(page, pax, cabinClass) {
         logger.warn('[FORM] Cabin class selection failed: ' + cabinErr.message);
       }
     }
-
-    // Verify final counts
-    const finalA = await readPaxRowCount(page, 'Adults');
-    const finalC = await readPaxRowCount(page, 'Child');
-    const finalI = await readPaxRowCount(page, 'Infants');
 
     // Close the dropdown by clicking OUTSIDE it on the page
     // Etrav's React dropdown only closes on a real outside mouse click
@@ -1163,18 +1413,24 @@ async function fillHotelPax(page, rooms, roomPax) {
 
     await page.waitForTimeout(300);
 
-    // Close dropdown by clicking outside it
-    // Click on the hotel destination input area — safely outside the rooms dropdown
-    const hotelClose = await page.evaluate(() => {
-      const input = document.querySelector('input[placeholder="Hotel name or Destination"], input.react-autosuggest__input');
-      if (input) {
-        const rect = input.getBoundingClientRect();
-        return { x: rect.x + rect.width / 2, y: rect.y - 10 };
-      }
-      return { x: 100, y: 50 };
-    });
-    await page.mouse.click(hotelClose.x, hotelClose.y);
-    await page.waitForTimeout(500);
+    // Close dropdown — use Escape key (universally safe, won\'t navigate the page).
+    // The previous mouse-click fallback to (100, 50) was hitting the site logo on
+    // /echotel (which has no Hotel autosuggest input) and drifting the page back
+    // to the homepage. Escape works on both /hotels and /echotel forms.
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(300);
+    // Belt-and-braces: if dropdown is still open, click on a known-safe element
+    // (the page H1 or body, NOT the top-left corner where the logo lives).
+    const stillOpen = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('h4'))
+        .some(h => /^Room \d/.test(h.textContent.trim()) && h.offsetParent !== null);
+    }).catch(() => false);
+    if (stillOpen) {
+      // Click at viewport center-bottom — safely outside any header or nav
+      const vp = page.viewportSize() || { width: 1280, height: 800 };
+      await page.mouse.click(Math.floor(vp.width / 2), vp.height - 60).catch(() => {});
+      await page.waitForTimeout(300);
+    }
 
     const paxSummary = roomPax.map((r, i) => `R${i + 1}:${r.adults}A${r.children > 0 ? ' ' + r.children + 'C' : ''}`).join(' ');
     logger.info(`[FORM] Hotel pax set: ${rooms} rooms — ${paxSummary}`);

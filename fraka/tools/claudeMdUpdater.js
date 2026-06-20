@@ -112,7 +112,6 @@ FRAKA is the AI sub-CTO / full-stack developer / operations manager that oversee
 - **Dashboard:** Express server on port ${intervals.dashboardPort || 4000}
 - **Scheduling:** node-cron with pause/resume per engine
 - **Persistence:** JSON files under state/ (no database)
-- **Session monitoring:** Zipy (app.zipy.ai)
 
 ## Current Engine State
 
@@ -120,7 +119,6 @@ FRAKA is the AI sub-CTO / full-stack developer / operations manager that oversee
 |--------|--------|----------|----------|
 | Search Pulse | ${engineState.searchPulse?.status || '?'} | ${intervals.searchPulseMinutes || '?'} min | ${systemState.lastSearchPulseRun?.timestamp || 'never'} |
 | Journey | ${engineState.journey?.status || '?'} | ${intervals.journeyMinutes || '?'} min | ${systemState.lastJourneyRun?.timestamp || 'never'} |
-| Zipy | ${engineState.zipy?.status || '?'} | ${intervals.zipyMinutes || '?'} min | ${systemState.lastZipyRun?.timestamp || 'never'} |
 | Full Booking | ${engineState.fullBooking?.status || '?'} | ${intervals.fullBookingMinutes || '?'} min | ${systemState.lastFullBookingRun?.timestamp || 'never'} |
 
 ## FRAKA Status
@@ -170,7 +168,6 @@ ${projectTree}
 | \`fraka/ceoDirectives.js\` | Persistent CEO standing orders |
 | \`fraka/tools/codeReader.js\` | Safe file read/write with path guards + blocklist |
 | \`fraka/tools/codeQA.js\` | Active QA (syntax, require, credentials scan) |
-| \`fraka/zipyKnowledge.js\` | Zipy domain knowledge for FRAKA |
 | \`utils/cronManager.js\` | Engine scheduling, pause/resume, intervals |
 | \`utils/tokenOptimizer.js\` | Claude API wrapper (FAST/STANDARD/DEEP modes) |
 | \`dashboard/server.js\` | Express app — 30+ API routes |

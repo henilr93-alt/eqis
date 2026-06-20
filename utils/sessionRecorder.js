@@ -90,7 +90,24 @@ async function createRecordingPage(browser, mainPage, searchId, formUrl) {
   // Pre-navigate to the form page so the video starts with the form already visible
   if (formUrl) {
     try {
-      await recPage.goto(formUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      // CEO Directive #1: A direct goto to https://new.etrav.in/flights from a fresh
+      // recording context gets server-side-redirected to the etrav.in marketing site —
+      // even with auth cookies restored from storageState. Root cause: Etrav requires
+      // a freshly issued session cookie set by an in-context login response. Restored
+      // cookies from disk are rejected. Re-authenticate the recPage in-context to get
+      // valid cookies, then deep-link to the form.
+      var login = require('./etravLogin');
+      try {
+        await login.authenticate(recPage);
+      } catch (authErr) {
+        logger.warn('[RECORDER] In-context re-auth failed: ' + authErr.message);
+      }
+      // After login recPage lands at /flights. The caller (flightSearchPulse or
+      // hotelSearchPulse) will perform its own navigation if it needs a different
+      // page — mirroring the Journey engine path that the CEO confirmed works.
+      // The CEO Directive #1 issue (second-goto-to-same-page redirect) is handled
+      // inside each pulse engine via a URL-match guard before the goto.
+      await recPage.waitForLoadState('networkidle', { timeout: 5000 }).catch(function() {});
       await recPage.waitForSelector(
         'input.react-autosuggest__input, input[placeholder="Where From ?"], input[placeholder="Hotel name or Destination"]',
         { timeout: 15000 }

@@ -1,5 +1,4 @@
 // Developments store — persistent CRUD for enhancement ideas.
-// Each development = a user-journey improvement suggestion from Zipy/FRAKA analysis.
 // Tech team can approve, reject, or mark in-progress; CEO views only.
 // Due days are set on approval and decrement daily.
 

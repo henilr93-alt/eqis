@@ -1,4 +1,4 @@
-// OTP Management API — stores OTPs per service (zipy, etrav) with 5-min expiry.
+// OTP Management API — stores OTPs per service (etrav) with 5-min expiry.
 const fs = require('fs');
 const path = require('path');
 const logger = require('../../utils/logger');
@@ -20,8 +20,8 @@ function isExpired(entry) {
 function submitOtpApi(req, res) {
   try {
     const { service, code } = req.body || {};
-    if (!service || !['zipy', 'etrav'].includes(service))
-      return res.status(400).json({ error: 'service must be "zipy" or "etrav"' });
+    if (!service || !['etrav'].includes(service))
+      return res.status(400).json({ error: 'service must be "etrav"' });
     if (!code || typeof code !== 'string' || !code.trim())
       return res.status(400).json({ error: 'code is required' });
 
@@ -37,7 +37,7 @@ function submitOtpApi(req, res) {
 
 function getLatestOtpApi(req, res) {
   try {
-    const service = req.query.service || 'zipy';
+    const service = req.query.service || 'etrav';
     const store = loadStore();
     const c = store.entries.filter(e => e.service === service && !e.used && !isExpired(e))
       .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));

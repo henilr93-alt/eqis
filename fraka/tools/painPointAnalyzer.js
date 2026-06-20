@@ -4,7 +4,6 @@
 //      with persistence tracking (how long each has been on the system).
 //
 //   2. DEVELOPMENTS — user-journey enhancement suggestions derived from
-//      Zipy sessions + metric patterns, tracked with tech team approval
 //      status and due dates.
 
 const fs = require('fs');
@@ -158,16 +157,6 @@ function gatherRawContext(windowHours = 168 /* 7 days */) {
         bugsP0: e.bugsP0, bugsP1: e.bugsP1, bugsP2: e.bugsP2, bugsP3: e.bugsP3,
         uxIssues: e.uxIssues,
         failed: e.failed,
-      };
-    }
-    if (e.engineType === 'zipy') {
-      return { ...base,
-        sessionsAnalyzed: e.sessionsAnalyzed,
-        uniqueBugs: e.uniqueBugsFound,
-        systemic: e.systemicBugs,
-        completionRate: e.completionRate,
-        errorRate: e.errorRate,
-        topBugs: (e.topBugs || []).slice(0, 5),
       };
     }
     if (e.engineType === 'fullbooking') {

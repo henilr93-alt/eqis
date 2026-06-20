@@ -10,8 +10,8 @@
 const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
-const browserModule = require('../engine2-journey/browser');
-const login = require('../engine2-journey/login');
+const browserModule = require('../utils/etravBrowser');
+const login = require('../utils/etravLogin');
 
 const METRICS_PATH = path.join(__dirname, '..', 'state', 'metricsHistory.json');
 

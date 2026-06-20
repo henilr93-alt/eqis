@@ -19,6 +19,14 @@ const logger = require('../../utils/logger');
 const settings = require('../../config/settings');
 const { callClaude } = require('../../utils/tokenOptimizer');
 const proposalsStore = require('../proposalsStore');
+const { runCoderBuild } = require('../coder');
+
+// AUTO-FIX dedupe: skip running the same fix more than once per cooldown.
+// Key = affectedFile + rootCauseCategory. Value = timestamp of last build attempt.
+// Prevents the auditor from triggering 30 identical builds in an hour while the
+// underlying bug remains unresolved.
+const AUTO_FIX_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+const _recentAutoFixes = new Map();
 
 const STATE_DIR = path.join(__dirname, '..', '..', 'state', 'fraka');
 const RULE_BOOK_PATH = path.join(STATE_DIR, 'ruleBook.json');
@@ -282,11 +290,17 @@ function persistFinding(search, verdict) {
     safeWrite(RULE_BOOK_PATH, rb);
   }
 
-  // For EQIS-side issues with high confidence, file a tech proposal so the team
-  // (or FRAKA's coder) can review and apply the fix.
+  // For EQIS-side issues with high confidence, file a tech proposal AND
+  // auto-trigger an autonomous build to apply the fix (per CEO directive:
+  // "FRAKA should not seek my approval in making such changes").
+  //
+  // De-duplication: same affectedFile + rootCauseCategory within 30 min is
+  // skipped, to prevent the same bug from triggering dozens of builds while
+  // it remains unresolved. The proposal is still recorded for audit.
   if (verdict.side === 'eqis' && verdict.confidence === 'high' && verdict.eqisFixSuggestion) {
+    let proposal = null;
     try {
-      proposalsStore.createProposal({
+      proposal = proposalsStore.createProposal({
         type: 'code-fix',
         audience: 'tech',
         priority: 'P1',
@@ -298,6 +312,61 @@ function persistFinding(search, verdict) {
     } catch (err) {
       logger.warn('[FRAKA-AUDIT] Failed to create proposal: ' + err.message);
     }
+
+    // Categorize root cause for dedupe (same buckets the user audit uses)
+    const rc = (verdict.rootCause || '').toLowerCase();
+    let causeBucket = 'other';
+    if (/return\s*date|date\s*pick|datepicker|range\s*pick/.test(rc)) causeBucket = 'date-picker-return';
+    else if (/check.?in|check.?out/.test(rc)) causeBucket = 'date-picker-hotel';
+    else if (/departure\s*date/.test(rc)) causeBucket = 'date-picker-departure';
+    else if (/passenger|\bpax\b|adult|child|infant/.test(rc)) causeBucket = 'pax-fill';
+    else if (/destination|origin|autosuggest/.test(rc)) causeBucket = 'autosuggest';
+
+    const dedupeKey = (verdict.affectedFile || 'unknown') + '::' + causeBucket;
+    const lastFix = _recentAutoFixes.get(dedupeKey);
+    const now = Date.now();
+    if (lastFix && (now - lastFix) < AUTO_FIX_COOLDOWN_MS) {
+      const minsLeft = Math.ceil((AUTO_FIX_COOLDOWN_MS - (now - lastFix)) / 60000);
+      logger.info('[FRAKA-AUDIT] Auto-fix SKIPPED (cooldown ' + minsLeft + 'min remaining) for key=' + dedupeKey);
+      return;
+    }
+    _recentAutoFixes.set(dedupeKey, now);
+
+    // Auto-approve the proposal so the audit trail shows FRAKA self-approved
+    if (proposal && proposal.id) {
+      try {
+        proposalsStore.approveProposal(proposal.id, 'fraka-auto');
+      } catch (err) {
+        logger.warn('[FRAKA-AUDIT] Auto-approve failed: ' + err.message);
+      }
+    }
+
+    // Build a clear task description for the coder. Include exact context so
+    // the coder knows WHAT to change, WHY, and the specific search that
+    // triggered it (so QA can verify).
+    const task =
+      '[CEO DIRECTIVE: ZERO SPF TOLERANCE] Any SearchPulse search landing in SPF status is a P0 issue. ' +
+      'AUTO-FIX from failure audit (search ' + search.searchId + '). ' +
+      'Root cause: ' + verdict.rootCause + '. ' +
+      'Fix suggestion: ' + verdict.eqisFixSuggestion + '. ' +
+      'Affected file (best guess): ' + (verdict.affectedFile || 'unknown') + '. ' +
+      'Category: ' + causeBucket + '. ' +
+      'Search context: ' + (search.label || search.sector || search.destination || '') + ' (' +
+      search.kind + '/' + (search.scenarioType || 'unknown') + '). ' +
+      'Build the fix so this exact failure mode cannot recur. Audit related logic (autosuggest, date picker, pax fill, search button click, result detection) for similar races. ' +
+      'Apply a focused, minimal patch that preserves the rest of the flow — no full-file rewrites, no dropped exports. Per CEO: SearchPulse must execute accurately end-to-end and produce real Etrav results.';
+
+    // AUTO-BUILD RE-ENABLED (2026-05-25 evening): coder.js now has a SIZE GUARD
+    // that rejects any UPDATE shrinking an existing file by >50% — truncation
+    // disasters cannot happen anymore. Combined with the 30-min dedupe cooldown
+    // above + per-build QA + auto-rollback, FRAKA self-heals without approval.
+    logger.info('[FRAKA-AUDIT] AUTO-FIX triggered for key=' + dedupeKey + ' (search ' + search.searchId + ')');
+    if (proposal && proposal.id) {
+      try { proposalsStore.updateProposal(proposal.id, { autoBuildTask: task }); } catch {}
+    }
+    runCoderBuild(task, { triggeredBy: 'fraka-failure-auditor', searchId: search.searchId })
+      .then(record => logger.info('[FRAKA-AUDIT] AUTO-FIX build ' + (record && record.id) + ' finished: ' + (record && record.status)))
+      .catch(err => logger.error('[FRAKA-AUDIT] AUTO-FIX build threw: ' + err.message));
   }
 }
 

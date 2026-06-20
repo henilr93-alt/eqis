@@ -1,0 +1,15 @@
+{
+  "pointer": 0,
+  "destinations": [
+    "Indonesia",
+    "Vietnam",
+    "Thailand"
+  ],
+  "lastBatch": [
+    "Indonesia",
+    "Vietnam",
+    "Thailand"
+  ],
+  "lastBatchAt": "2026-06-20T15:00:00.537Z",
+  "_comment": "ECD inventory exists for Bali, Vietnam, Thailand. United Arab Emirates / Dubai PAUSED 2026-06-01 per user — re-add to this list when ready to resume."
+}

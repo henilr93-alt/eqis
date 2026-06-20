@@ -23,7 +23,6 @@ function readMetrics(hours = 1) {
     engines: {
       searchPulse: summariseEngine(recent.filter(e => e.engineType === 'searchpulse'), 'searchpulse'),
       journey: summariseEngine(recent.filter(e => e.engineType === 'journey'), 'journey'),
-      zipy: summariseEngine(recent.filter(e => e.engineType === 'zipy'), 'zipy'),
       fullBooking: summariseEngine(recent.filter(e => e.engineType === 'fullbooking'), 'fullbooking'),
     },
   };
@@ -77,20 +76,6 @@ function summariseEngine(entries, engineType) {
     };
   }
 
-  if (engineType === 'zipy') {
-    const latest = entries[entries.length - 1] || {};
-    return {
-      ...base,
-      latest: {
-        sessionsHarvested: latest.sessionsHarvested,
-        sessionsAnalyzed: latest.sessionsAnalyzed,
-        uniqueBugsFound: latest.uniqueBugsFound,
-        systemicBugs: latest.systemicBugs,
-        completionRate: latest.completionRate,
-        errorRate: latest.errorRate,
-      },
-    };
-  }
 
   return base;
 }

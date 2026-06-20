@@ -268,6 +268,9 @@ function searchCard(pulse, type) {
     ? `<span style="font-size:11px;color:#555;font-family:monospace;margin-left:12px;">ID: ${escapeHtml(pulse.searchId)}</span>`
     : '';
 
+  // Airline Filter Snapshot (Flight INTL SUCCESS only — feeds Supplier Health)
+  const airlineFilterSnapshot = airlineFilterSectionHtml(pulse);
+
   // Only show screenshot for non-success searches
   const showScreenshot = !isSuccess || rating === 'CRITICAL' || rating === 'DELAY';
 
@@ -290,7 +293,54 @@ function searchCard(pulse, type) {
     ${actionsHtml}
     ${videoPlayerHtml(pulse.recordingPath)}
     ${showScreenshot ? screenshotHtml(pulse) : ''}
+    ${airlineFilterSnapshot}
     ${evaluationHtml(pulse.evaluation)}
+  </div>`;
+}
+
+// ── Airline Filter Snapshot (Supplier Health) ──────────────────
+function airlineFilterSectionHtml(pulse) {
+  const list = pulse && pulse.airlinesShown;
+  if (!list || !Array.isArray(list) || list.length === 0) return '';
+  const shotPath = pulse.airlineFilterScreenshot || '';
+  // resolve relative path: report is saved in reports/searchpulse/, screenshots live in reports/journey/PULSE-x/screenshots/
+  const relShot = shotPath ? path.relative(path.join(__dirname, '..', 'reports', 'searchpulse'), shotPath) : '';
+  const anomalies = (pulse.supplierAnomalies && Array.isArray(pulse.supplierAnomalies)) ? pulse.supplierAnomalies : [];
+  const anomalyKeySet = new Set(anomalies.map(a => (a.name || '').toLowerCase()));
+  const rows = list.map(a => {
+    const isMissing = false; // captured airlines are present by definition
+    return `<tr>
+      <td style="padding:6px 10px;color:#eee;font-size:13px;">${escapeHtml(a.name)}</td>
+      <td style="padding:6px 10px;color:#34C759;font-size:13px;text-align:right;font-family:monospace;">${a.count}</td>
+    </tr>`;
+  }).join('');
+  const missingRows = anomalies.length > 0
+    ? anomalies.map(a => `<tr>
+        <td style="padding:6px 10px;color:#FF3B30;font-size:13px;">${escapeHtml(a.name)}
+          <span style="display:inline-block;margin-left:6px;background:#4D0A0A;color:#FF3B30;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;">MISSING</span>
+        </td>
+        <td style="padding:6px 10px;color:#666;font-size:12px;text-align:right;font-family:monospace;">24h baseline ${Math.round(a.baselineRate*100)}%</td>
+      </tr>`).join('')
+    : '';
+  const shotHtml = relShot
+    ? `<img src="${escapeHtml(relShot)}" alt="airline filter" style="max-width:280px;border:1px solid #222;border-radius:8px;background:#0a0a0a;" />`
+    : '';
+  return `<div style="margin-top:14px;background:#0a0a0a;border:1px solid #222;border-radius:10px;padding:14px;">
+    <div style="font-size:11px;color:#FF9500;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:10px;">&#9992;&#65039; Airline Filter Snapshot — Supplier Health</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
+      <div>${shotHtml}</div>
+      <div style="flex:1;min-width:240px;">
+        <table style="width:100%;border-collapse:collapse;background:#111;border-radius:6px;overflow:hidden;">
+          <thead>
+            <tr style="background:#181818;">
+              <th style="text-align:left;padding:6px 10px;font-size:11px;color:#888;text-transform:uppercase;">Airline</th>
+              <th style="text-align:right;padding:6px 10px;font-size:11px;color:#888;text-transform:uppercase;">Flights</th>
+            </tr>
+          </thead>
+          <tbody>${rows}${missingRows}</tbody>
+        </table>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -345,7 +395,11 @@ const REPORT_CSS = `
 // ── Build report ─────────────────────────────────────────────
 async function build(pulseData, trendData) {
   const now = new Date();
-  const istStr = now.toLocaleString('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  // FIX 2026-05-31: use hourCycle 'h23' so midnight is "00:00:00" not "24:00:00".
+  // The en-CA locale's hour12:false mode renders midnight as "24:" which produced
+  // malformed filenames like "search-pulse-2026-05-31_24-45-47.html" — the History
+  // tab then displayed the invalid "24:45" time.
+  const istStr = now.toLocaleString('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
   const dateStr = istStr.slice(0, 10);
   const timeStr = istStr.slice(12, 20).replace(/:/g, '-'); // HH-MM-SS
   const filename = `search-pulse-${dateStr}_${timeStr}.html`;

@@ -1,0 +1,1944 @@
+{
+  "sends": [
+    {
+      "id": "send-mqmglv6t-ew85",
+      "sentAt": "2026-06-20T14:35:00.773Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "Only 0 renegotiate hotel(s) — threshold is 3",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqmegp0r-z0is",
+      "sentAt": "2026-06-20T13:35:00.267Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "Only 0 renegotiate hotel(s) — threshold is 3",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqmcbjim-2bwc",
+      "sentAt": "2026-06-20T12:35:00.622Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "Only 0 renegotiate hotel(s) — threshold is 3",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqm817zz-clpy",
+      "sentAt": "2026-06-20T10:35:00.671Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqm4hen0-zb5x",
+      "sentAt": "2026-06-20T08:55:37.308Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "Only 2 renegotiate hotel(s) — threshold is 3",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqm4hemv-ln5p",
+      "sentAt": "2026-06-20T08:55:37.303Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": "EQIS · Marketing — 3 hotels to promote today",
+      "summaryLine": "3 promote · ₹34,924 total savings",
+      "recordCount": 3,
+      "messageId": "19ee43e1e0e5094f",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqm4he89-lxzv",
+      "sentAt": "2026-06-20T08:55:36.777Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "alpesh.p@etrav.in",
+        "kavin.p@codemagen.com",
+        "frank@codemagen.com",
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report (yesterday) — 43 Etrav issues · 87% success on 334 searches",
+      "summaryLine": "334 searches · 87.1% success · 43 Etrav issues",
+      "recordCount": 43,
+      "messageId": "19ee43e1d75b4d04",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqkuqkdk-nl6e",
+      "sentAt": "2026-06-19T11:35:02.312Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": "EQIS · Contracting — 5 hotels to renegotiate today",
+      "summaryLine": "5 renegotiate · ₹1,99,841 total overpay",
+      "recordCount": 5,
+      "messageId": "19edfa9b67f20dc9",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqkuqjqi-l9s6",
+      "sentAt": "2026-06-19T11:35:01.482Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": "EQIS · Marketing — 3 hotels to promote today",
+      "summaryLine": "3 promote · ₹2,65,851 total savings",
+      "recordCount": 3,
+      "messageId": "19edfa9b269f90f5",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqksldgo-eepm",
+      "sentAt": "2026-06-19T10:35:00.840Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqksldgm-vzx2",
+      "sentAt": "2026-06-19T10:35:00.838Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqko5ga1-d2ww",
+      "sentAt": "2026-06-19T08:30:39.529Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqko5g9y-uer2",
+      "sentAt": "2026-06-19T08:30:39.526Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqkm5vvu-96oh",
+      "sentAt": "2026-06-19T07:35:00.522Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqkm5vvt-jvyr",
+      "sentAt": "2026-06-19T07:35:00.521Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqkl4k62-uemd",
+      "sentAt": "2026-06-19T07:05:59.066Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqkl4k5z-kosw",
+      "sentAt": "2026-06-19T07:05:59.063Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqkkokbs-1exe",
+      "sentAt": "2026-06-19T06:53:32.776Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqkkokbo-ulj4",
+      "sentAt": "2026-06-19T06:53:32.772Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqkk0pvd-81jk",
+      "sentAt": "2026-06-19T06:35:00.217Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqkk0pvb-961c",
+      "sentAt": "2026-06-19T06:35:00.215Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqkjvcso-sj5b",
+      "sentAt": "2026-06-19T06:30:49.992Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqkjvcsn-wdrr",
+      "sentAt": "2026-06-19T06:30:49.991Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqkjvcsi-8ugn",
+      "sentAt": "2026-06-19T06:30:49.986Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "alpesh.p@etrav.in",
+        "kavin.p@codemagen.com",
+        "frank@codemagen.com",
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report (yesterday) — 42 Etrav issues · 88% success on 343 searches",
+      "summaryLine": "343 searches · 87.8% success · 42 Etrav issues",
+      "recordCount": 42,
+      "messageId": "19ede93357d26bb9",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqjq0guo-93wd",
+      "sentAt": "2026-06-18T16:35:00.048Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjq0gud-trr3",
+      "sentAt": "2026-06-18T16:35:00.037Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjls4ne-hs5i",
+      "sentAt": "2026-06-18T14:36:32.522Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjls4nc-zzl7",
+      "sentAt": "2026-06-18T14:36:32.520Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjlq5zo-v7lr",
+      "sentAt": "2026-06-18T14:35:00.948Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjlq5ze-4aqz",
+      "sentAt": "2026-06-18T14:35:00.938Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjlbdcj-0htm",
+      "sentAt": "2026-06-18T14:23:30.643Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjlbdch-vbad",
+      "sentAt": "2026-06-18T14:23:30.641Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjkg9v1-cair",
+      "sentAt": "2026-06-18T13:59:19.789Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjkg9uy-8m0g",
+      "sentAt": "2026-06-18T13:59:19.786Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjjkzsg-ouqr",
+      "sentAt": "2026-06-18T13:35:00.400Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjjkzse-38b3",
+      "sentAt": "2026-06-18T13:35:00.398Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjjgmuq-zj4u",
+      "sentAt": "2026-06-18T13:31:37.010Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjjgmuo-q2hy",
+      "sentAt": "2026-06-18T13:31:37.008Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjhftr8-zzy3",
+      "sentAt": "2026-06-18T12:35:00.068Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjhftr7-792y",
+      "sentAt": "2026-06-18T12:35:00.067Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjfaohx-h3t9",
+      "sentAt": "2026-06-18T11:35:00.741Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjfaohu-adai",
+      "sentAt": "2026-06-18T11:35:00.738Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 (engine-bugs=15, infra=0) — engine-bug failures still present",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjb0cjs-2gi4",
+      "sentAt": "2026-06-18T09:35:00.232Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "Only 0 renegotiate hotel(s) — threshold is 3",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqjb0cjr-ggwz",
+      "sentAt": "2026-06-18T09:35:00.231Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "No ECD_CHEAPER combos found across all audited hotels",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqj8v71d-1nv5",
+      "sentAt": "2026-06-18T08:35:00.577Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "Only 0 renegotiate hotel(s) — threshold is 3",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqj8v71c-sddp",
+      "sentAt": "2026-06-18T08:35:00.576Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "No ECD_CHEAPER combos found across all audited hotels",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqj6q0zg-cyz8",
+      "sentAt": "2026-06-18T07:35:00.220Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "Only 0 renegotiate hotel(s) — threshold is 3",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqj6q0ze-gux0",
+      "sentAt": "2026-06-18T07:35:00.218Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "No ECD_CHEAPER combos found across all audited hotels",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqj5cd7r-3jly",
+      "sentAt": "2026-06-18T06:56:23.271Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "Only 0 renegotiate hotel(s) — threshold is 3",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqj5cd7q-80ph",
+      "sentAt": "2026-06-18T06:56:23.270Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "No ECD_CHEAPER combos found across all audited hotels",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqj5cd7p-1tuf",
+      "sentAt": "2026-06-18T06:56:23.269Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "alpesh.p@etrav.in",
+        "kavin.p@codemagen.com",
+        "frank@codemagen.com",
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report (yesterday) — 45 Etrav issues · 84% success on 281 searches",
+      "summaryLine": "281 searches · 84.0% success · 45 Etrav issues",
+      "recordCount": 45,
+      "messageId": "19ed9843f7b8d07e",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqj5cb2h-ezit",
+      "sentAt": "2026-06-18T06:56:20.489Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "Only 0 renegotiate hotel(s) — threshold is 3",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqj5cb2e-ydbp",
+      "sentAt": "2026-06-18T06:56:20.486Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "No ECD_CHEAPER combos found across all audited hotels",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqj5cb25-3ab3",
+      "sentAt": "2026-06-18T06:56:20.477Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "alpesh.p@etrav.in",
+        "kavin.p@codemagen.com",
+        "frank@codemagen.com",
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report (yesterday) — 45 Etrav issues · 84% success on 281 searches",
+      "summaryLine": "281 searches · 84.0% success · 45 Etrav issues",
+      "recordCount": 45,
+      "messageId": "19ed984337a54a76",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqi6abc7-0a6f",
+      "sentAt": "2026-06-17T14:35:00.967Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqi6abc4-eakb",
+      "sentAt": "2026-06-17T14:35:00.964Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqi455dq-1lyu",
+      "sentAt": "2026-06-17T13:35:00.734Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqi455do-umny",
+      "sentAt": "2026-06-17T13:35:00.732Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqi3e3pr-193f",
+      "sentAt": "2026-06-17T13:13:58.863Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqi3e3pq-kjzt",
+      "sentAt": "2026-06-17T13:13:58.862Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqi1zz8u-u180",
+      "sentAt": "2026-06-17T12:35:00.270Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqi1zz8r-it7x",
+      "sentAt": "2026-06-17T12:35:00.267Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqhzutd7-k0wk",
+      "sentAt": "2026-06-17T11:35:00.139Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqhzutd5-z79f",
+      "sentAt": "2026-06-17T11:35:00.137Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqhxpnsl-wnne",
+      "sentAt": "2026-06-17T10:35:00.405Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqhxpnsk-pslp",
+      "sentAt": "2026-06-17T10:35:00.404Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqhvkia4-l9kn",
+      "sentAt": "2026-06-17T09:35:00.748Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqhvkia3-ct7l",
+      "sentAt": "2026-06-17T09:35:00.747Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqhuj7rz-k8ut",
+      "sentAt": "2026-06-17T09:06:00.863Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqhuj7rv-5c57",
+      "sentAt": "2026-06-17T09:06:00.859Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqhu9xl9-yi4k",
+      "sentAt": "2026-06-17T08:58:47.757Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqhu9xl8-so81",
+      "sentAt": "2026-06-17T08:58:47.756Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=15 — last cycle had broken hotels",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mqhu9xl5-iig9",
+      "sentAt": "2026-06-17T08:58:47.753Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "alpesh.p@etrav.in",
+        "kavin.p@codemagen.com",
+        "frank@codemagen.com",
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report (yesterday) — 36 Etrav issues · 90% success on 353 searches",
+      "summaryLine": "353 searches · 89.8% success · 36 Etrav issues",
+      "recordCount": 36,
+      "messageId": "19ed4cdf2bb54fa1",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqb1y6tm-1v8y",
+      "sentAt": "2026-06-12T14:59:13.546Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "alpesh.p@etrav.in",
+        "kavin.p@codemagen.com",
+        "frank@codemagen.com",
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report (yesterday) — 19 Etrav issues · 81% success on 98 searches",
+      "summaryLine": "98 searches · 80.6% success · 19 Etrav issues",
+      "recordCount": 19,
+      "messageId": "19ebc5823f7871fa",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqb1px66-cw91",
+      "sentAt": "2026-06-12T14:52:47.790Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "alpesh.p@etrav.in",
+        "kavin.p@codemagen.com",
+        "frank@codemagen.com",
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report (yesterday) — 19 Etrav issues · 81% success on 98 searches",
+      "summaryLine": "98 searches · 80.6% success · 19 Etrav issues",
+      "recordCount": 19,
+      "messageId": "19ebc5241ad3da23",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqb19c76-0xrg",
+      "sentAt": "2026-06-12T14:39:54.114Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "OK",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": "EQIS · Contracting — 5 hotels to renegotiate today",
+      "summaryLine": "5 renegotiate · ₹6,95,775 total overpay",
+      "recordCount": 5,
+      "messageId": "19ebc46732ae795e",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqb0zg78-7mw9",
+      "sentAt": "2026-06-12T14:32:12.740Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "OK",
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · Contracting — 3 hotels to renegotiate today",
+      "summaryLine": "3 renegotiate · ₹5,74,613 total overpay",
+      "recordCount": 3,
+      "messageId": "19ebc3f68ced068e",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqb0zex5-8udk",
+      "sentAt": "2026-06-12T14:32:11.081Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "OK",
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · Marketing — 3 hotels to promote today",
+      "summaryLine": "3 promote · ₹78,369 total savings",
+      "recordCount": 3,
+      "messageId": "19ebc3f60ef93352",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqazb100-ftj2",
+      "sentAt": "2026-06-12T13:45:13.680Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "OK",
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · Marketing — 3 hotels to promote today",
+      "summaryLine": "3 promote · ₹1,49,596 total savings",
+      "recordCount": 3,
+      "messageId": "19ebc14646497dc2",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqaz1u3u-k4re",
+      "sentAt": "2026-06-12T13:38:04.843Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "OK",
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · Marketing — 9 hotels to promote today",
+      "summaryLine": "9 promote · ₹7,54,324 total savings",
+      "recordCount": 9,
+      "messageId": "19ebc0dd9baacde7",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqaynre4-nl5a",
+      "sentAt": "2026-06-12T13:27:08.140Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "OK",
+      "recipients": [
+        "daniel.p@etrav.in"
+      ],
+      "subject": "EQIS · Marketing — 9 hotels to promote today",
+      "summaryLine": "9 promote · ₹3,06,026 total savings",
+      "recordCount": 9,
+      "messageId": "19ebc03d212a33a4",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqaxulc9-zlkm",
+      "sentAt": "2026-06-12T13:04:27.273Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "OK",
+      "recipients": [
+        "mdo@etrav.in"
+      ],
+      "subject": "EQIS · Marketing — 3 hotels to promote today",
+      "summaryLine": "3 promote · ₹8,98,169 total savings",
+      "recordCount": 3,
+      "messageId": "19ebbef0f99d4e41",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqaxs95i-r1s4",
+      "sentAt": "2026-06-12T13:02:38.166Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "OK",
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · Contracting — 3 hotels to renegotiate today",
+      "summaryLine": "3 renegotiate · ₹5,74,613 total overpay",
+      "recordCount": 3,
+      "messageId": "19ebbed65ffa4d10",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqaxs855-3796",
+      "sentAt": "2026-06-12T13:02:36.857Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "OK",
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · Marketing — 3 hotels to promote today",
+      "summaryLine": "3 promote · ₹8,98,169 total savings",
+      "recordCount": 3,
+      "messageId": "19ebbed61f66ce89",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqaxjwgx-smva",
+      "sentAt": "2026-06-12T12:56:08.481Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "OK",
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · Marketing — 10 hotels to promote today",
+      "summaryLine": "10 promote · ₹2,50,505 total savings",
+      "recordCount": 10,
+      "messageId": "19ebbe772f92ee12",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqax4m7m-a4g9",
+      "sentAt": "2026-06-12T12:44:15.346Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "OK",
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · Contracting — 10 hotels to renegotiate today",
+      "summaryLine": "10 renegotiate · ₹1,02,089 total overpay",
+      "recordCount": 10,
+      "messageId": "19ebbdc90fd00f51",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqax47jq-qvfc",
+      "sentAt": "2026-06-12T12:43:56.342Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "OK",
+      "recipients": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "subject": "EQIS · Contracting — 10 hotels to renegotiate today",
+      "summaryLine": "10 renegotiate · ₹1,02,089 total overpay",
+      "recordCount": 10,
+      "messageId": "19ebbdc4627fc17d",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqawzxvf-jpkd",
+      "sentAt": "2026-06-12T12:40:37.179Z",
+      "teamId": "contracting",
+      "teamName": "Eagle Crest Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "OK",
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · Contracting — 10 hotels to renegotiate today",
+      "summaryLine": "10 renegotiate · ₹1,02,089 total overpay",
+      "recordCount": 10,
+      "messageId": "19ebbd93c0fad3c7",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqawb7xs-c77q",
+      "sentAt": "2026-06-12T12:21:23.824Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in",
+        "alpesh.p@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — 22 Etrav issues · 76% success on 91 searches",
+      "summaryLine": "91 searches · 75.8% success · 22 Etrav issues",
+      "recordCount": 22,
+      "messageId": "19ebbc7a59f7d2eb",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqavvcwx-svh5",
+      "sentAt": "2026-06-12T12:09:03.777Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in",
+        "alpesh.p@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — 21 Etrav issues · 76% success on 89 searches",
+      "summaryLine": "89 searches · 76.4% success · 21 Etrav issues",
+      "recordCount": 21,
+      "messageId": "19ebbbc5934b05df",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqavu606-am71",
+      "sentAt": "2026-06-12T12:08:08.166Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in",
+        "alpesh.p@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — 21 Etrav issues · 76% success on 89 searches",
+      "summaryLine": "89 searches · 76.4% success · 21 Etrav issues",
+      "recordCount": 21,
+      "messageId": "19ebbbb81ff5b820",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqavm9w6-qygc",
+      "sentAt": "2026-06-12T12:01:59.958Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "alpesh.p@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — 21 Etrav issues · 76% success on 88 searches",
+      "summaryLine": "88 searches · 76.1% success · 21 Etrav issues",
+      "recordCount": 21,
+      "messageId": "19ebbb5e0a57131d",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqavlglk-hac8",
+      "sentAt": "2026-06-12T12:01:21.992Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — 21 Etrav issues · 76% success on 88 searches",
+      "summaryLine": "88 searches · 76.1% success · 21 Etrav issues",
+      "recordCount": 21,
+      "messageId": "19ebbb54c3009c0d",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqav8ym8-2sw2",
+      "sentAt": "2026-06-12T11:51:38.816Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — 21 Etrav issues · 76% success on 86 searches",
+      "summaryLine": "86 searches · 75.6% success · 21 Etrav issues",
+      "recordCount": 21,
+      "messageId": "19ebbac6754ca76e",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqauus77-6i29",
+      "sentAt": "2026-06-12T11:40:37.315Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — 21 Etrav issues · 69% success on 91 searches",
+      "summaryLine": "91 searches · 69.2% success · 21 Etrav issues",
+      "recordCount": 21,
+      "messageId": "19ebba24f71771de",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mqauqb5s-mb96",
+      "sentAt": "2026-06-12T11:37:08.608Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — 21 Etrav issues · 69% success on 90 searches",
+      "summaryLine": "90 searches · 68.9% success · 21 Etrav issues",
+      "recordCount": 21,
+      "messageId": "19ebb9f211c5cb17",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mq9guxku-l0sz",
+      "sentAt": "2026-06-11T12:21:03.486Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — 4 Etrav issues · 91% success on 70 searches",
+      "summaryLine": "70 searches · 91.4% success · 4 Etrav issues",
+      "recordCount": 4,
+      "messageId": "19eb6a0f9dc54fe4",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mq9gbakc-7cfm",
+      "sentAt": "2026-06-11T12:05:47.196Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — 4 Etrav issues · 91% success on 66 searches",
+      "summaryLine": "66 searches · 90.9% success · 4 Etrav issues",
+      "recordCount": 4,
+      "messageId": "19eb692fc5533320",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mq9gabof-fje2",
+      "sentAt": "2026-06-11T12:05:01.983Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — 4 Etrav issues · 91% success on 66 searches",
+      "summaryLine": "66 searches · 90.9% success · 4 Etrav issues",
+      "recordCount": 4,
+      "messageId": "19eb6924d4b51f4d",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mq9e4wfa-ulsx",
+      "sentAt": "2026-06-11T11:04:49.702Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — 2 Etrav issues · 91% success on 47 searches",
+      "summaryLine": "47 searches · 91.5% success · 2 Etrav issues",
+      "recordCount": 2,
+      "messageId": "19eb65b2f563dba7",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mq9e0xjn-xf3u",
+      "sentAt": "2026-06-11T11:01:44.531Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — 2 Etrav issues · 91% success on 46 searches",
+      "summaryLine": "46 searches · 91.3% success · 2 Etrav issues",
+      "recordCount": 2,
+      "messageId": "19eb6585b9e8f7f7",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mq9cht43-4wfe",
+      "sentAt": "2026-06-11T10:18:52.707Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — 3 SPFs · 91% success on 35 searches",
+      "summaryLine": "35 searches · 91.4% success · 3 SPFs",
+      "recordCount": 3,
+      "messageId": "19eb6311c3730547",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mq9by8s6-wlyh",
+      "sentAt": "2026-06-11T10:03:39.894Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — all healthy · 100% success on 29 searches",
+      "summaryLine": "29 searches · 100.0% success · 0 SPFs",
+      "recordCount": 0,
+      "messageId": "19eb6232e5ebca1c",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mq9by1q2-jl59",
+      "sentAt": "2026-06-11T10:03:30.746Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "tech@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — all healthy · 100% success on 29 searches",
+      "summaryLine": "29 searches · 100.0% success · 0 SPFs",
+      "recordCount": 0,
+      "messageId": "19eb6230b27b9b5b",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mq9awj16-an2l",
+      "sentAt": "2026-06-11T09:34:20.250Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse daily report — all healthy · 100% success on 23 searches",
+      "summaryLine": "23 searches · 100.0% success · 0 SPFs",
+      "recordCount": 0,
+      "messageId": "19eb60854ce75107",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mq9av6a8-i93m",
+      "sentAt": "2026-06-11T09:33:17.072Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "Zero searches in last 24h — SearchPulse may be offline",
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mq9aug4x-wck7",
+      "sentAt": "2026-06-11T09:32:43.185Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "No SPF data available",
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mq9agf57-o91m",
+      "sentAt": "2026-06-11T09:21:48.715Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "OK",
+      "suppressionReason": null,
+      "recipients": [
+        "director@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse — 7 SPFs in last 24h",
+      "summaryLine": "7 SPFs · 20.59% failure rate · 34 searches",
+      "recordCount": 7,
+      "messageId": "19eb5fcdc6c94e89",
+      "dryRun": false,
+      "error": null
+    },
+    {
+      "id": "send-mq74v0jo-r9o0",
+      "sentAt": "2026-06-09T21:09:39.588Z",
+      "teamId": "contracting",
+      "teamName": "Hotel Contracting Team",
+      "reportType": "ecd_renegotiate_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=3 — last cycle had broken hotels",
+      "recipients": [
+        "contracting@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mq74v0jo-lsq4",
+      "sentAt": "2026-06-09T21:09:39.588Z",
+      "teamId": "marketing",
+      "teamName": "Marketing Team",
+      "reportType": "ecd_promote_digest",
+      "status": "SUPPRESSED",
+      "suppressionReason": "ecdBrokenCount=3 — last cycle had broken hotels",
+      "recipients": [
+        "marketing@etrav.in"
+      ],
+      "subject": null,
+      "summaryLine": null,
+      "recordCount": 0,
+      "messageId": null,
+      "dryRun": false
+    },
+    {
+      "id": "send-mq74v0jn-htaj",
+      "sentAt": "2026-06-09T21:09:39.587Z",
+      "teamId": "tech",
+      "teamName": "Tech Team",
+      "reportType": "searchpulse_digest",
+      "status": "DRY_RUN",
+      "suppressionReason": null,
+      "recipients": [
+        "tech@etrav.in"
+      ],
+      "subject": "EQIS · SearchPulse — 11 SPFs in last 24h",
+      "summaryLine": "11 SPFs · 39.29% failure rate · 28 searches",
+      "recordCount": 11,
+      "messageId": null,
+      "dryRun": true,
+      "error": null
+    }
+  ]
+}

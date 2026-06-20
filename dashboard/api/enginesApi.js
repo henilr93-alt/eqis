@@ -8,7 +8,6 @@ function getEnginesApi(req, res) {
       descriptions: {
         searchPulse: 'Search Pulse Engine — search + results health',
         journey: 'Journey Test Engine — full booking flow',
-        zipy: 'Zipy Intelligence — real agent session analysis',
         fullBooking: 'Full Booking Engine — PNR capture + cancel',
       },
     });
@@ -60,7 +59,7 @@ function startAllApi(req, res) {
     const state = cronManager.resumeAllEngines();
     // Trigger immediate runs for each resumed engine (except fullBooking which stays paused)
     const triggered = [];
-    for (const engine of ['searchPulse', 'journey', 'zipy']) {
+    for (const engine of ['searchPulse', 'journey']) {
       if (state[engine] === 'running') {
         try {
           if (cronManager.runEngineNow(engine)) triggered.push(engine);

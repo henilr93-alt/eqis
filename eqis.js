@@ -10,9 +10,9 @@ const logger = require('./utils/logger');
 
 const STATE_PATH = path.join(__dirname, 'state', 'systemState.json');
 const REPORT_DIRS = [
-  path.join(settings.REPORT_DIR, 'zipy'),
   path.join(settings.REPORT_DIR, 'journey'),
   path.join(settings.REPORT_DIR, 'searchpulse'),
+  path.join(settings.REPORT_DIR, 'ecd'),
 ];
 const LOG_DIR = settings.LOG_DIR;
 
@@ -26,13 +26,10 @@ function readState() {
       status: 'stopped',
       startedAt: null,
       lastJourneyRun: { timestamp: null, status: null, reportPath: null },
-      lastZipyRun: { timestamp: null, status: null, reportPath: null },
       lastSearchPulseRun: { timestamp: null, health: null, reportPath: null },
       nextJourneyRun: null,
-      nextZipyRun: null,
       nextSearchPulseRun: null,
       totalJourneyRuns: 0,
-      totalZipyRuns: 0,
       totalSearchPulseRuns: 0,
       currentSearchHealth: 'UNKNOWN',
     };
@@ -53,54 +50,14 @@ function ensureDirs() {
 
 // ── Engine runners (lazy-loaded) ────────────────────────────────
 
-async function runZipyEngine() {
-  const state = readState();
-  logger.info('[EQIS] Triggering Zipy Engine...');
-  try {
-    const { runZipyEngine: run } = require('./engine1-zipy/zipyEngine');
-    const result = await run();
-    state.lastZipyRun = {
-      timestamp: new Date().toISOString(),
-      status: result.success ? 'success' : 'failed',
-      reportPath: result.reportPath || null,
-    };
-    state.totalZipyRuns++;
-    writeState(state);
-    logger.info(`[EQIS] Zipy Engine complete — ${result.reportPath || 'no report'}`);
-  } catch (err) {
-    state.lastZipyRun = { timestamp: new Date().toISOString(), status: 'error', reportPath: null };
-    writeState(state);
-    logger.error(`[EQIS] Zipy Engine failed: ${err.message}`);
-  }
-}
+async function runJourneyEngine() { /* removed 2026-06-13 */ }
 
-async function runJourneyEngine() {
+async function runSearchPulseEngine(opts) {
   const state = readState();
-  logger.info('[EQIS] Triggering Journey Engine...');
-  try {
-    const { runJourneyEngine: run } = require('./engine2-journey/journeyEngine');
-    const result = await run();
-    state.lastJourneyRun = {
-      timestamp: new Date().toISOString(),
-      status: result.success ? 'success' : 'failed',
-      reportPath: result.reportPath || null,
-    };
-    state.totalJourneyRuns++;
-    writeState(state);
-    logger.info(`[EQIS] Journey Engine complete — ${result.reportPath || 'no report'}`);
-  } catch (err) {
-    state.lastJourneyRun = { timestamp: new Date().toISOString(), status: 'error', reportPath: null };
-    writeState(state);
-    logger.error(`[EQIS] Journey Engine failed: ${err.message}`);
-  }
-}
-
-async function runSearchPulseEngine() {
-  const state = readState();
-  logger.info('[EQIS] Triggering Search Pulse Engine...');
+  logger.info('[EQIS] Triggering Search Pulse Engine' + (opts && opts.subEngine ? ' (' + opts.subEngine + ')' : '') + '...');
   try {
     const { runSearchPulseEngine: run } = require('./engine3-searchpulse/searchPulseEngine');
-    const result = await run();
+    const result = await run(opts);  // 2026-06-14: forward opts so per-sub-engine lock works
     state.lastSearchPulseRun = {
       timestamp: new Date().toISOString(),
       health: result.pulseData?.overallHealth || 'UNKNOWN',
@@ -117,29 +74,63 @@ async function runSearchPulseEngine() {
   }
 }
 
-async function runFullBookingEngine() {
+async function runEcdEngine() {
   const state = readState();
-  logger.info('[EQIS] Triggering Full Booking Engine...');
+  logger.info('[EQIS] Triggering ECD Engine...');
   try {
-    const { runFullBookingEngine: run } = require('./engine4-fullbooking/fullBookingEngine');
-    const result = await run();
-    if (result.skipped) {
-      logger.info(`[EQIS] Full Booking skipped: ${result.reason}`);
+    if (settings.ECD_ENABLED !== 'true') {
+      logger.info('[EQIS] ECD skipped — ECD_ENABLED=false');
       return;
     }
-    state.lastFullBookingRun = {
+    const { runEcdComparisonCycle } = require('./ecd-comparator/ecdOrchestrator');
+    const result = await runEcdComparisonCycle();
+    if (result.skipped) {
+      logger.info(`[EQIS] ECD skipped: ${result.reason}`);
+      return;
+    }
+    state.lastEcdRun = {
       timestamp: new Date().toISOString(),
-      status: result.success ? 'success' : 'failed',
-      pnrs: result.pnrs || [],
-      reportPath: result.reportPath || null,
+      runId: result.comparison?.runId || null,
+      reportPath: result.reportPaths?.htmlPath || null,
+      summary: result.comparison?.summary || null,
     };
-    state.totalFullBookingRuns = (state.totalFullBookingRuns || 0) + 1;
+    state.totalEcdRuns = (state.totalEcdRuns || 0) + 1;
     writeState(state);
-    logger.info(`[EQIS] Full Booking complete — PNRs: ${(result.pnrs || []).join(', ') || 'none'}`);
+    logger.info(`[EQIS] ECD complete — ${result.comparison?.hotelComparisons?.length || 0} hotels`);
   } catch (err) {
-    state.lastFullBookingRun = { timestamp: new Date().toISOString(), status: 'error', reportPath: null };
+    state.lastEcdRun = { timestamp: new Date().toISOString(), error: err.message };
     writeState(state);
-    logger.error(`[EQIS] Full Booking failed: ${err.message}`);
+    logger.error(`[EQIS] ECD failed: ${err.message}`);
+  }
+}
+
+async function runFullBookingEngine() { /* removed 2026-06-13 */ }
+
+// Engine 9: merged Flight INTL Audit (search → results audit → book → review
+// audit on ONE continuous page). ADDITIVE — runs alongside (does not replace)
+// the existing SearchPulse Flight INTL + Review engines until verified. Not
+// auto-started on boot; only fires when explicitly started/run.
+async function runFlightIntlAuditEngine() {
+  const state = readState();
+  logger.info('[EQIS] Triggering Flight INTL Audit Engine...');
+  try {
+    const { runFlightIntlAudit } = require('./engine9-flightintlaudit/flightIntlAuditEngine');
+    const row = await runFlightIntlAudit();
+    state.lastFlightIntlAuditRun = {
+      timestamp: new Date().toISOString(),
+      runId: (row && row.runId) || null,
+      searchStatus: (row && row.search && row.search.status) || null,
+      reviewVerdict: (row && row.review && row.review.verdict) || null,
+    };
+    state.totalFlightIntlAuditRuns = (state.totalFlightIntlAuditRuns || 0) + 1;
+    writeState(state);
+    logger.info('[EQIS] Flight INTL Audit complete — search=' +
+      (state.lastFlightIntlAuditRun.searchStatus || 'n/a') + ' review=' +
+      (state.lastFlightIntlAuditRun.reviewVerdict || 'n/a'));
+  } catch (err) {
+    state.lastFlightIntlAuditRun = { timestamp: new Date().toISOString(), error: err.message };
+    writeState(state);
+    logger.error('[EQIS] Flight INTL Audit failed: ' + err.message);
   }
 }
 
@@ -155,10 +146,11 @@ Commands:
   node eqis.js start              Start all engines (recommended)
   node eqis.js stop               Stop all engines
   node eqis.js status             Show current system status
-  node eqis.js run-zipy           Run Zipy analysis now
   node eqis.js run-journey        Run journey test now
   node eqis.js run-searchpulse    Run search pulse now
   node eqis.js run-fullbooking    Run full booking test now (requires BOOKING_FLOW_ENABLED=true)
+  node eqis.js run-ecd            Run ECD comparison cycle now (requires ECD_ENABLED=true)
+  node eqis.js run-flightintlaudit  Run one merged Flight INTL Audit now (search + book/review)
   node eqis.js trial-cmt          Trial run: discover CMT escalation form (headed browser)
   node eqis.js --help             Show this help message
 `);
@@ -175,7 +167,7 @@ function showStatus() {
 ║  Started: ${(state.startedAt || 'never').padEnd(44)}║
 ║  Search Health: ${(state.currentSearchHealth || 'UNKNOWN').padEnd(38)}║
 ║                                                      ║
-║  Search Pulse Engine (every 15 min):                 ║
+║  Search Pulse Engine (every 3 min):                  ║
 ║    Last run: ${(sp.timestamp || 'never').padEnd(41)}║
 ║    Health: ${(sp.health || 'n/a').padEnd(43)}║
 ║    Total runs: ${String(state.totalSearchPulseRuns || 0).padEnd(39)}║
@@ -185,10 +177,6 @@ function showStatus() {
 ║    Status: ${(state.lastJourneyRun?.status || 'n/a').padEnd(43)}║
 ║    Total runs: ${String(state.totalJourneyRuns || 0).padEnd(39)}║
 ║                                                      ║
-║  Zipy Engine (every 10 min):                         ║
-║    Last run: ${(state.lastZipyRun?.timestamp || 'never').padEnd(41)}║
-║    Status: ${(state.lastZipyRun?.status || 'n/a').padEnd(43)}║
-║    Total runs: ${String(state.totalZipyRuns || 0).padEnd(39)}║
 ╚══════════════════════════════════════════════════════╝
 `);
 }
@@ -224,10 +212,9 @@ async function startSystem() {
 ╔══════════════════════════════════════════════════════╗
 ║     ETRAV QA INTELLIGENCE SYSTEM — STARTING UP       ║
 ╠══════════════════════════════════════════════════════╣
-║  Engine 1 — Zipy Analysis    : every 10 minutes      ║
-║  Engine 2 — Journey Testing  : every 30 minutes      ║
-║  Engine 3 — Search Pulse     : every 15 minutes      ║
-║  Engine 4 — Full Booking     : every 60 minutes      ║
+║  Engine 1 — Journey Testing  : every 30 minutes      ║
+║  Engine 2 — Search Pulse         : every 3 minutes       ║
+║  Engine 3 — Full Booking         : every 60 minutes      ║
 ║  FRAKA    — Sub-CTO Review   : hourly auto-review    ║
 ║  Dashboard : http://localhost:${String(settings.DASHBOARD_PORT || 4000).padEnd(4)}               ║
 ║  Reports  : ./reports/                               ║
@@ -238,24 +225,41 @@ async function startSystem() {
   // All 4 engines managed by cronManager (user can start/stop each from dashboard)
   const cronManager = require('./utils/cronManager');
   cronManager.setTimezone(settings.TIMEZONE);
-  cronManager.setRunner('zipy', () => runZipyEngine());
-  cronManager.setRunner('journey', () => runJourneyEngine());
+  // 2026-06-13: Journey engine removed.
+  // CEO 2026-06-01: 4 separate SearchPulse sub-engines, each on its own cron clock.
+  cronManager.setRunner('searchPulse.flightDom',  () => runSearchPulseEngine({ subEngine: 'flight-dom' }));
+  cronManager.setRunner('searchPulse.flightIntl', () => runSearchPulseEngine({ subEngine: 'flight-intl' }));
+  cronManager.setRunner('searchPulse.hotelDom',   () => runSearchPulseEngine({ subEngine: 'hotel-dom' }));
+  cronManager.setRunner('searchPulse.hotelIntl',  () => runSearchPulseEngine({ subEngine: 'hotel-intl' }));
+  // Backward-compat: keep the legacy parent runner for force-run calls that still pass 'searchPulse'.
   cronManager.setRunner('searchPulse', () => runSearchPulseEngine());
-  cronManager.setRunner('fullBooking', () => {
-    if (settings.BOOKING_FLOW_ENABLED === 'true') runFullBookingEngine();
-  });
+  // 2026-06-13: Full Booking engine removed.
+  cronManager.setRunner('ecd', () => runEcdEngine());
+  // Engine 9: merged Flight INTL Audit — additive runner (not auto-started).
+  cronManager.setRunner('flightIntlAudit', () => runFlightIntlAuditEngine());
 
-  // Schedule all engines (Zipy is now interval-based like the others)
+  // Schedule all engines
   const intervals = cronManager.getIntervals();
-  cronManager.scheduleZipy(intervals.zipyMinutes);
-  const journeyPattern = cronManager.scheduleJourney(intervals.journeyMinutes);
-  const pulsePattern = cronManager.scheduleSearchPulse(intervals.searchPulseMinutes);
-  logger.info(`[EQIS] Journey cron: ${journeyPattern} (every ${intervals.journeyMinutes} min)`);
-  logger.info(`[EQIS] Search Pulse cron: ${pulsePattern} (every ${intervals.searchPulseMinutes} min)`);
+  // CEO 2026-06-01: 4 separate sub-engine cron jobs
+  const pulsePatterns = cronManager.scheduleSearchPulseAll(intervals.searchPulse);
+  logger.info(`[EQIS] Search Pulse Flight DOM:  ${pulsePatterns.flightDom}  (every ${intervals.searchPulse.flightDom} min)`);
+  logger.info(`[EQIS] Search Pulse Flight INTL: ${pulsePatterns.flightIntl} (every ${intervals.searchPulse.flightIntl} min)`);
+  logger.info(`[EQIS] Search Pulse Hotel DOM:   ${pulsePatterns.hotelDom}   (every ${intervals.searchPulse.hotelDom} min)`);
+  logger.info(`[EQIS] Search Pulse Hotel INTL:  ${pulsePatterns.hotelIntl}  (every ${intervals.searchPulse.hotelIntl} min)`);
 
-  // Full Booking — now interval-driven (default every 60 min) via cronManager
-  const bookingPattern = cronManager.scheduleFullBooking(intervals.fullBookingMinutes);
-  logger.info(`[EQIS] Full Booking cron: ${bookingPattern} (every ${intervals.fullBookingMinutes} min) (${settings.BOOKING_FLOW_ENABLED === 'true' ? 'ENV ENABLED' : 'ENV DISABLED — set BOOKING_FLOW_ENABLED=true to activate real bookings'})`);
+  // ECD Comparison — paused by default. Set ECD_ENABLED=true in .env + Start
+  // via the ECD dashboard tab to activate. cronManager.state.ecd persists pause/run.
+  const ecdMinutes = intervals.ecdMinutes || settings.ECD_RUN_INTERVAL_MINUTES;
+  const ecdPattern = cronManager.scheduleEcd(ecdMinutes);
+  logger.info(`[EQIS] ECD cron: ${ecdPattern} (every ${ecdMinutes} min) (${settings.ECD_ENABLED === 'true' ? 'ENV ENABLED' : 'ENV DISABLED — set ECD_ENABLED=true to activate'})`);
+
+  // Engine 9: merged Flight INTL Audit — every 2 min (per-engine lock self-
+  // throttles overlaps). ADDITIVE: scheduled but NOT auto-started — it stays
+  // 'paused' until explicitly started (dashboard toggle / run-once CLI), so it
+  // never doubles the live booking load against the existing Review engine
+  // until it's verified and the legacy path is removed.
+  const fiaPattern = cronManager.scheduleFlightIntlAudit(2);
+  logger.info('[EQIS] Flight INTL Audit cron: ' + fiaPattern + ' (every 2 min) — additive, not auto-started');
 
   // Restore paused state from previous session (if any engines were stopped via dashboard)
   const persistedState = cronManager.applyPersistedState();
@@ -275,6 +279,16 @@ async function startSystem() {
     logger.info('[EQIS] FRAKA hourly reviewer registered: 0 * * * * (every hour, on the hour)');
   } catch (err) {
     logger.error('[EQIS] Failed to register FRAKA hourly cron: ' + err.message);
+  }
+
+  // Daily-digest emailer — sends one email per roster team at 9am IST
+  // containing their subscribed reports (SearchPulse SPF digest / ECD
+  // Promote / ECD Renegotiate). Runs in DRY-RUN until GMAIL_OAUTH_* env
+  // vars (or state/gmail-oauth-*.json) are configured for eqis@etrav.in.
+  try {
+    require('./utils/dailyDigestScheduler').register();
+  } catch (err) {
+    logger.error('[EQIS] Daily digest scheduler failed to register: ' + err.message);
   }
 
   // CLAUDE.md daily updater — writes full project context every 24h at midnight IST
@@ -315,6 +329,26 @@ async function startSystem() {
   // No automatic boot runs — engines only run when the user
   // explicitly clicks Start on the dashboard (per-engine or master).
   // Scheduled cron runs are still gated by engineState (guardedRun).
+
+  // ── CEO HARD RULE 2026-05-28: SearchPulse auto-start ──────────────
+  // Every time EQIS boots, SearchPulse is forced to 'running'. It is also
+  // marked as protected in cronManager — pauseAllEngines() (e.g. when FRAKA
+  // sleeps) will skip it. Only an explicit user click on the dashboard
+  // Stop button can pause SearchPulse.
+  try {
+    cronManager.start('searchPulse');
+    // CEO 2026-06-01: also force-start the SearchPulse sub-engines on boot per directive #5.
+    // USER OVERRIDE 2026-06-20: legacy 'searchPulse.flightIntl' is intentionally EXCLUDED
+    // from the boot force-start — Flight INTL Audit (Engine 9) now covers the Flight INTL
+    // slice, so the legacy Flight INTL SearchPulse must stay shut down across restarts until
+    // the user explicitly asks to start it again. Do NOT re-add it here.
+    for (const sub of ['searchPulse.flightDom', 'searchPulse.hotelDom', 'searchPulse.hotelIntl']) {
+      try { cronManager.start(sub); } catch {}
+    }
+    logger.info('[EQIS] CEO RULE: SearchPulse + sub-engines force-started on boot (flightIntl excluded per user 2026-06-20; protected from auto-stop)');
+  } catch (forceStartErr) {
+    logger.warn('[EQIS] SearchPulse force-start failed: ' + forceStartErr.message);
+  }
 
   // FRAKA wake/sleep gate: EQIS only runs when FRAKA is awake.
   try {
@@ -368,11 +402,6 @@ function stopSystem() {
     case 'status':
       showStatus();
       break;
-    case 'run-zipy':
-      ensureDirs();
-      await runZipyEngine();
-      process.exit(0);
-      break;
     case 'run-journey':
       ensureDirs();
       await runJourneyEngine();
@@ -386,6 +415,16 @@ function stopSystem() {
     case 'run-fullbooking':
       ensureDirs();
       await runFullBookingEngine();
+      process.exit(0);
+      break;
+    case 'run-ecd':
+      ensureDirs();
+      await runEcdEngine();
+      process.exit(0);
+      break;
+    case 'run-flightintlaudit':
+      ensureDirs();
+      await runFlightIntlAuditEngine();
       process.exit(0);
       break;
     case 'trial-cmt':

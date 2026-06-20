@@ -1,6 +1,9 @@
 const logger = require('../utils/logger');
 const screenshotter = require('../utils/screenshotter');
 const { evaluateSearchPulse } = require('./searchPulseEvaluator');
+const { captureAirlineFilter } = require('./airlineFilterCapture');
+const supplierHealth = require('../utils/supplierHealth');
+const path = require('path');
 const {
   fillAutosuggest, pickReactDate, pickFlightDateRange, selectTripType,
   clickSearchFlight, countFlightResults, getFlightResultCountFromText,
@@ -10,6 +13,112 @@ const {
   isFormCrashed,
   FLIGHT_RESULT_SELECTOR,
 } = require('../utils/etravFormHelpers');
+
+// 2026-06-05: Capture Etrav's results-page UX snapshot for competitor (MMT)
+// comparison. Scoped page.evaluate — captures sort, filter, fare-bundle, stops
+// breakdown, and top-15 visible combinations. All findings tolerate partial DOM.
+// Output shape matches engine7-competitor/comparator.js Etrav snapshot.
+async function _captureEtravFlightUx(page) {
+  try {
+    return await page.evaluate(() => {
+      const safe = (fn, fb) => { try { return fn(); } catch { return fb; } };
+      const parseINR = (raw) => { const m = String(raw||'').replace(/,/g,'').match(/(\d{3,7})/); return m ? parseInt(m[1],10) : null; };
+      // Top combinations from .accordion_container cards
+      const cards = Array.from(document.querySelectorAll('.accordion_container, .flight_search_result')).slice(0, 15);
+      const topCombinations = cards.map((c, i) => {
+        const text = (c.innerText || '').replace(/\s+/g, ' ').trim();
+        const priceMatch = text.match(/₹\s?([0-9,]+)/);
+        let stops = null;
+        if (/non[\s-]?stop/i.test(text)) stops = 0;
+        else { const sm = text.match(/(\d)\s*stop/i); if (sm) stops = parseInt(sm[1],10); }
+        const tms = text.match(/\b(\d{1,2}:\d{2})\b/g) || [];
+        // 2026-06-07: reject "NoFlightIcon" — the placeholder alt Etrav sets
+        // on its flight-card icon when no real airline logo is wired up. The
+        // old code happily returned it as the airline name, causing every
+        // topCombinations.airline to read "NoFlightIcon" in History,
+        // Supplier Health, and the Competitor drill-down. Same root cause as
+        // the earlier airlineCount NoFlightIcon double-count fix.
+        let airline = safe(() => {
+          const img = c.querySelector('img[alt]');
+          if (!img || !img.alt) return null;
+          const a = img.alt.trim();
+          if (!a || a.length >= 40) return null;
+          if (/^NoFlightIcon$/i.test(a)) return null;
+          return a;
+        }, null);
+        if (!airline) {
+          const firstLine = text.split('\n')[0] || text.slice(0, 30);
+          const m = firstLine.match(/^([A-Za-z][A-Za-z &]+?)(?:\s*\+|\s*\d|\s*$)/);
+          airline = m ? m[1].trim() : null;
+        }
+        return {
+          rank: i + 1, airline,
+          stops,
+          depTime: tms[0] || null,
+          arrTime: tms[1] || null,
+          priceINR: priceMatch ? parseINR(priceMatch[1]) : null,
+          fareBundle: null,
+          refundable: /refundable/i.test(text) && !/non[\s-]?refundable/i.test(text),
+        };
+      });
+      const stopBreakdown = { nonStop: 0, oneStop: 0, twoPlus: 0 };
+      for (const c of topCombinations) {
+        if (c.stops === 0) stopBreakdown.nonStop++;
+        else if (c.stops === 1) stopBreakdown.oneStop++;
+        else if (c.stops >= 2) stopBreakdown.twoPlus++;
+      }
+      const prices = topCombinations.map(c => c.priceINR).filter(p => p != null && isFinite(p)).sort((a,b) => a-b);
+      // 2026-06-07: enrich cheapestFare with the airline + stops of the
+      // combination that produced the minimum price, so the dashboard can
+      // show "Etrav cheapest is on Air India, 1 stop" instead of just the
+      // number. Mirrors the Cleartrip cheapestFare shape.
+      let cheapestFare = null;
+      if (prices.length > 0) {
+        const minPrice = prices[0];
+        const cheapest = topCombinations.find(c => c.priceINR === minPrice);
+        cheapestFare = {
+          amount: minPrice,
+          currency: 'INR',
+          airline: cheapest ? (cheapest.airline || null) : null,
+          stops:   cheapest ? (cheapest.stops != null ? cheapest.stops : null) : null,
+        };
+      }
+      const medianFare = prices.length > 0 ? prices[Math.floor(prices.length/2)] : null;
+      // Sort / filter / bundle probes
+      const bodyTxt = (document.body.innerText || '').toLowerCase();
+      const sortOptions = [];
+      for (const opt of ['cheapest','fastest','best','smart','departure','arrival','duration']) {
+        if (bodyTxt.includes(opt)) sortOptions.push(opt);
+      }
+      const filterOptions = [];
+      for (const p of ['stops','airlines','price','duration','departure','arrival','refundable','fare type','layover','airports']) {
+        if (bodyTxt.includes(p)) filterOptions.push(p);
+      }
+      const fareBundleTypes = [];
+      for (const t of ['refundable','non-refundable','saver','flexi','comfort','corporate']) {
+        if (bodyTxt.includes(t)) fareBundleTypes.push(t);
+      }
+      const uiFeatures = {
+        splitFareCalloutShown: /split[\s-]?fare/i.test(bodyTxt),
+        baggageIndicator:      /baggage/i.test(bodyTxt),
+        layoverDurationShown:  /layover/i.test(bodyTxt),
+        refundPolicyChip:      /refundable|cancellation/i.test(bodyTxt),
+        ecoFootprint:          /co2|carbon footprint/i.test(bodyTxt),
+        fareLockOffered:       /lock\s*your?\s*price|farelock/i.test(bodyTxt),
+        freeMealChip:          /free meal/i.test(bodyTxt),
+        instantConfirm:        /instant confirm/i.test(bodyTxt),
+      };
+      return {
+        defaultSort: null, sortOptions, filterOptions, fareBundleTypes,
+        stopBreakdown, viaPoints: [],
+        cheapestFare, medianFare,
+        priceByStops: null,
+        topCombinations,
+        uiFeatures,
+      };
+    });
+  } catch { return null; }
+}
 
 // Helper: detect Etrav crash mid-fill and bail with a clean status (so we don't
 // waste time clicking on a crashed form, then mislabel it as AUTOSUGGEST_DOWN).
@@ -37,7 +146,40 @@ function addDays(date, days) {
   return d;
 }
 
-async function runFlightSearchPulse(page, scenario, pulseId) {
+// CEO 2026-06-02: wrapper that ALWAYS records every Flight INTL outcome
+// (including failures/SPF/zero-results) to Supplier Health, so the matrix
+// shows every attempted route — not just the successful captures.
+async function runFlightSearchPulse(page, scenario, pulseId, opts) {
+  // opts (all optional, default-undefined preserves the standalone SearchPulse
+  // behaviour exactly):
+  //   skipReviewHook  true → do NOT fire the legacy fire-and-forget Review Pulse
+  //                   here. Used by the merged Flight INTL Audit engine, which
+  //                   runs the review inline on the SAME page right after search.
+  opts = opts || {};
+  const result = await _runFlightSearchPulseImpl(page, scenario, pulseId, opts);
+  try {
+    if (scenario && scenario.type === 'international') {
+      const sectorKey = (scenario.from || '') + '→' + (scenario.to || '');
+      const airlines = (result && result.airlinesShown) ? result.airlinesShown : [];
+      // Don't double-record: the success path inside the impl already wrote a
+      // SUCCESS entry. Only add a record here if no airlines were captured AND
+      // we have a sectorKey AND outcome is a non-success.
+      if (airlines.length === 0 && sectorKey && sectorKey.length > 2) {
+        supplierHealth.recordSearch(sectorKey, [], {
+          status: (result && result.searchStatus) || 'UNKNOWN',
+          failureReason: (result && result.failureReason) ? String(result.failureReason).slice(0, 200) : null,
+          screenshotPath: null,
+        });
+      }
+    }
+  } catch (recErr) {
+    logger.warn('[SUPPLIER-HEALTH] outcome record (failure path) errored: ' + recErr.message);
+  }
+  return result;
+}
+
+async function _runFlightSearchPulseImpl(page, scenario, pulseId, opts) {
+  opts = opts || {};
   // Compute search date upfront from scenario params (before try block so it's always set)
   const depDate = addDays(new Date(), scenario.dateOffsetDays || scenario.dateOffset || 7);
   // Globally-unique searchId: 5-digit base + ms-timestamp suffix (base36) + 2 random chars.
@@ -78,9 +220,14 @@ async function runFlightSearchPulse(page, scenario, pulseId) {
     logger.info(`[PULSE] Flight search: ${scenario.from}->${scenario.to} | ${scenario.cabinClass}`);
 
     // Navigate to flights form — skip if already there (recording pre-navigation)
+    // CEO Directive #1: A second goto to new.etrav.in/flights gets server-redirected
+    // to the etrav.in marketing site (session/referer issue). Only re-navigate if we
+    // are truly NOT on the flights form; otherwise just wait for the network to settle.
     const currentUrl = page.url();
-    if (!currentUrl.includes('/flights') || currentUrl.includes('/flights/oneway') || currentUrl.includes('/flights/roundtrip')) {
+    if (!currentUrl.includes('new.etrav.in/flights')) {
       await page.goto('https://new.etrav.in/flights', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    } else {
+      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     }
     // Scroll to top to reset viewport position
     await page.evaluate(() => window.scrollTo(0, 0));
@@ -151,12 +298,16 @@ async function runFlightSearchPulse(page, scenario, pulseId) {
 
 
     // Origin
-    const originOk = await fillAutosuggest(page, 'Where From ?', scenario.fromCity || scenario.from);
-    result.actions.push(`Origin: ${scenario.fromCity || scenario.from} [${originOk ? 'OK' : 'FAIL'}]`);
+    // CEO 2026-06-02 fix: use IATA code FIRST (unambiguous). City names like
+    // "Paris" can match the wrong airport (PHT = Paris,TN instead of CDG = Paris,FR).
+    const originOk = await fillAutosuggest(page, 'Where From ?', scenario.from || scenario.fromCity);
+    result.actions.push(`Origin: ${scenario.from || scenario.fromCity} [${originOk ? 'OK' : 'FAIL'}]`);
 
     // Destination
-    const destOk = await fillAutosuggest(page, 'Where To ?', scenario.toCity || scenario.to);
-    result.actions.push(`Destination: ${scenario.toCity || scenario.to} [${destOk ? 'OK' : 'FAIL'}]`);
+    // CEO 2026-06-02 fix: IATA code FIRST (unambiguous) — city names like
+    // "Paris" can autocomplete to wrong airport (PHT = Paris,TN instead of CDG = Paris,FR).
+    const destOk = await fillAutosuggest(page, 'Where To ?', scenario.to || scenario.toCity);
+    result.actions.push(`Destination: ${scenario.to || scenario.toCity} [${destOk ? 'OK' : 'FAIL'}]`);
 
     // FIX 3: Bail out early if origin or destination autosuggest failed
     if (!originOk || !destOk) {
@@ -352,11 +503,11 @@ async function runFlightSearchPulse(page, scenario, pulseId) {
       if (!preSubmit.from || !preSubmit.to) {
         logger.warn('[PULSE] AUTO-RECOVERY: refilling cleared autosuggest fields');
         if (!preSubmit.from) {
-          const ok = await fillAutosuggest(page, 'Where From ?', scenario.fromCity || scenario.from);
+          const ok = await fillAutosuggest(page, 'Where From ?', scenario.from || scenario.fromCity);
           result.actions.push('AUTO-RECOVERY origin refill: ' + (ok ? 'OK' : 'FAIL'));
         }
         if (!preSubmit.to) {
-          const ok = await fillAutosuggest(page, 'Where To ?', scenario.toCity || scenario.to);
+          const ok = await fillAutosuggest(page, 'Where To ?', scenario.to || scenario.toCity);
           result.actions.push('AUTO-RECOVERY destination refill: ' + (ok ? 'OK' : 'FAIL'));
         }
         // Re-validate after refill
@@ -652,23 +803,31 @@ async function runFlightSearchPulse(page, scenario, pulseId) {
       result.airlineCount = await page.evaluate(() => {
         const cards = document.querySelectorAll('.accordion_container, .flight_search_result');
         const airlines = new Set();
+        // 2026-06-05 fix: per-card identify ONE canonical carrier — display
+        // name preferred, IATA code from <img src> only as a fallback when
+        // the name isn't parsable. The previous version added BOTH name and
+        // code to the same Set, double-counting every carrier (e.g. Air India
+        // + AI counted as 2). That produced "Airlines: 5" for searches with
+        // only 2 real carriers (Air India + Vietjet) in History tab.
         cards.forEach(card => {
           const text = (card.innerText || '').trim();
-          // Primary: extract airline name from the first word/phrase before the pipe
           // Card text format: "SpiceJet | SG 193, SG 695 | Class: HR | 21:10 ..."
           const firstLine = text.split('\n')[0] || '';
           const airlineName = firstLine.split('|')[0].trim();
           if (airlineName && airlineName.length > 1 && airlineName.length < 25) {
-            airlines.add(airlineName);
+            airlines.add(airlineName.toLowerCase());
+            return; // got the name — do NOT also add the IATA code
           }
-          // Secondary: airline code from img src (e.g., SG.png, 6E.png)
+          // Fallback: airline code from img src (e.g., SG.png, 6E.png) — only
+          // when the firstLine didn't yield a usable name.
           const imgs = card.querySelectorAll('img');
-          imgs.forEach(img => {
+          for (const img of imgs) {
             const fname = (img.src || '').split('/').pop().replace(/\.(png|jpg|svg|webp)$/i, '');
             if (fname && fname.length >= 2 && fname.length <= 3 && fname !== 'NoFlightIcon') {
-              airlines.add(fname.toUpperCase());
+              airlines.add(fname.toLowerCase());
+              break; // one code per card is enough
             }
-          });
+          }
         });
         return airlines.size || 0;
       });
@@ -677,6 +836,85 @@ async function runFlightSearchPulse(page, scenario, pulseId) {
     result.searchStatus = result.resultCount === 0 ? 'ZERO_RESULTS'
       : result.apiErrors > 0 ? 'API_ERROR'
       : 'SUCCESS';
+
+    // SUPPLIER HEALTH (Flight INTL only, SUCCESS only): capture airline filter
+    // — screenshot + parsed list of airlines+counts. Feeds Supplier Health tab
+    //   and per-search report embed. Non-blocking — failure is logged & skipped.
+    try {
+      if (result.searchStatus === 'SUCCESS' && scenario && scenario.type === 'international') {
+        // 2026-06-07: `pulseId` is generated as "PULSE-YYYY-MM-DD-HHMM" by
+        // generatePulseId() — already carries the "PULSE-" prefix. The
+        // earlier `'PULSE-' + pulseId` concat produced
+        // `PULSE-PULSE-2026-06-07-1635/` on disk, diverging from the
+        // fullPage screenshot dir (just `PULSE-…`). Strip a duplicate
+        // prefix defensively so the directory name matches whichever
+        // shape `pulseId` arrives in.
+        const dirName = String(pulseId).startsWith('PULSE-') ? pulseId : ('PULSE-' + pulseId);
+        const shotDir = path.join(__dirname, '..', 'reports', 'journey', dirName, 'screenshots');
+        const label = ((scenario.from || '') + '-' + (scenario.to || '')) || 'sector';
+        const cap = await captureAirlineFilter(page, shotDir, label);
+        if (cap) {
+          result.airlineFilterScreenshot = cap.screenshotPath;
+          result.airlinesShown = cap.airlines;
+          // 2026-06-05 fix: the airline filter dropdown is the AUTHORITATIVE
+          // source for "how many airlines appeared in this search" — it's
+          // exactly what Etrav shows the user in the Airlines sidebar.
+          // The earlier .accordion_container card-scrape at line 767 routinely
+          // undercounts on long-haul searches because Etrav lazy-renders cards
+          // and/or groups them by airline code (observed: 650 flights / 14
+          // airlines in dropdown → card-scrape reported only 3 distinct names).
+          // Override airlineCount with the dropdown's count so the "Airlines"
+          // headline in the History report matches the snapshot table below it.
+          if (Array.isArray(cap.airlines)) {
+            result.airlineCount = cap.airlines.length;
+          }
+          const sectorKey = (scenario.from || '') + '→' + (scenario.to || '');
+          try { supplierHealth.recordSearch(sectorKey, cap.airlines, { screenshotPath: cap.screenshotPath || null }); } catch {}
+          try {
+            const flagged = supplierHealth.detectAnomalies(sectorKey, cap.airlines, 0.8);
+            if (flagged && flagged.length) {
+              result.supplierAnomalies = flagged;
+              logger.warn('[SUPPLIER ALERT] ' + sectorKey + ': ' +
+                flagged.map(f => f.name + ' missing (24h baseline ' + Math.round(f.baselineRate*100) + '%)').join(', '));
+            }
+          } catch {}
+
+          // Competitor (engine 7) hook removed 2026-06-14 per user request
+
+          // 2026-06-13: Review Pulse hook — INTL only, FIRE-AND-FORGET.
+          // Engine opens its own page in the shared browser context, never
+          // touches this `page`. SearchPulse iteration is never blocked or
+          // delayed (CEO Directives #13 Zero SPF + #14 auto-protect).
+          try {
+            const sType = String((scenario && (scenario.type || scenario.scenarioType || scenario.id || scenario.scenarioId)) || '');
+            const isIntl = /international|INTL/i.test(sType);
+            // 2026-06-18: skipReviewHook lets the merged Flight INTL Audit engine
+            // run the review inline on the SAME page (continuous flow) instead of
+            // firing this legacy fire-and-forget own-browser review. Default
+            // (undefined) preserves the existing standalone SearchPulse behaviour.
+            if (isIntl && !opts.skipReviewHook) {
+              const reviewPulseEngine = require('../engine8-reviewpulse/reviewPulseEngine');
+              if (reviewPulseEngine.isEnabled()) {
+                const reviewArgs = {
+                  context: page.context(),
+                  searchResultsUrl: page.url(),
+                  sector: { from: scenario.from, to: scenario.to },
+                  scenario,
+                };
+                // FIRE-AND-FORGET — no await, errors swallowed
+                reviewPulseEngine.runForFlightIntl(reviewArgs)
+                  .catch(err => logger.warn('[REVIEW-PULSE] background run failed: ' + err.message));
+              }
+            }
+          } catch (rpErr) {
+            // Never let review hook errors leak into Etrav pulse
+            logger.warn('[REVIEW-PULSE] hook errored (non-blocking): ' + rpErr.message);
+          }
+        }
+      }
+    } catch (afErr) {
+      logger.warn('[AIRLINE-FILTER] post-success capture errored: ' + afErr.message);
+    }
 
     // Vision evaluation — ONLY for zero-result or failed searches (saves ~90% tokens)
     // Successful searches already have result count + load time from DOM scraping
@@ -689,18 +927,51 @@ async function runFlightSearchPulse(page, scenario, pulseId) {
 
     logger.info(`[PULSE] Flight ${scenario.from}->${scenario.to}: ${result.searchStatus} | ${result.resultCount} results | ${result.loadTimeMs}ms`);
   } catch (err) {
-    result.searchStatus = 'FAILED';
+    // 2026-06-08 (honest classification fix): the page-closed error pattern is
+    // OUR orchestrator killing the browser while inner Playwright operations
+    // are still awaiting — not an Etrav failure. Classify it correctly so it
+    // stops counting as a "real" SPF and stops being blamed on Etrav.
+    //
+    // EQIS_CLEANUP_RACE   — orchestrator closed the browser mid-flight
+    // EQIS_AUTOMATION_BUG — Playwright timeout on a known automation step
+    // UNVERIFIED          — error happened but we have no screenshot/recording
+    //                       to verify whether it was us or Etrav. Was wrongly
+    //                       labelled as ETRAV ISSUE previously.
+    const msg = err && err.message || '';
+    const isCleanupRace = /Target page, context or browser has been closed|page\.goto.*interrupted by another navigation/i.test(msg);
+    const isAutomationTimeout = /elementHandle\.type.*Timeout|Timeout\s+\d+ms exceeded/i.test(msg) && !isCleanupRace;
+
+    if (isCleanupRace) {
+      result.searchStatus = 'EQIS_CLEANUP_RACE';
+      result.failureReason = 'EQIS RACE: the orchestrator closed the browser/page while this search\'s inner Playwright operation was still awaiting. Not an Etrav failure. Root: searchPulseEngine.js Promise.race / browser.close() before in-flight ops drained. Original error: ' + msg.slice(0, 200);
+    } else if (isAutomationTimeout) {
+      result.searchStatus = 'EQIS_AUTOMATION_BUG';
+      result.failureReason = 'EQIS AUTOMATION: Playwright timed out on an internal automation step before Etrav had a chance to respond. Not a verified Etrav issue. Original: ' + msg.slice(0, 200);
+    } else {
+      result.searchStatus = 'FAILED';
+      result.failureReason = 'RUNTIME ERROR: ' + msg;
+    }
     result.error = err.message;
-    result.failureReason = 'RUNTIME ERROR: ' + err.message;
-    logger.error(`[PULSE] Flight search failed: ${scenario.id} - ${err.message}`);
-    // Take screenshot on crash for tech team analysis
+    logger.error(`[PULSE] Flight search failed: ${scenario.id} - [${result.searchStatus}] ${err.message}`);
+    // Take screenshot on crash for tech team analysis.
+    // 2026-06-08 evidence guard: if NO screenshot can be captured (page is
+    // dead) AND we don't already have a recordingPath, mark the failure as
+    // UNVERIFIED. Stops EQIS from blaming Etrav when we have no proof.
+    let shotOk = false;
     try {
       result.screenshot = await screenshotter.takeStep(page, pulseId, `flight-pulse-${scenario.id}`);
       if (result.screenshot) {
         const path = require('path');
         result.screenshotPath = path.join(__dirname, '..', 'reports', 'journey', pulseId, 'screenshots', `flight-pulse-${scenario.id}.png`);
+        shotOk = true;
       }
     } catch { /* screenshot failed too — page may be crashed */ }
+    // If this was previously labelled "ETRAV ISSUE" by the inner code but we
+    // have ZERO evidence (no shot, no recording), downgrade the label.
+    if (!shotOk && !result.recordingPath && /ETRAV ISSUE|ETRAV PLATFORM/i.test(result.failureReason || '')) {
+      result.searchStatus = 'UNVERIFIED';
+      result.failureReason = 'UNVERIFIED: previously labelled as Etrav issue but no screenshot or recording was captured to support the claim. Cannot confirm whether Etrav or EQIS was at fault. Original label: ' + (result.failureReason || '').slice(0, 200);
+    }
   }
 
   return result;

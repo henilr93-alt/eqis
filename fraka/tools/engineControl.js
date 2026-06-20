@@ -3,9 +3,8 @@ const logger = require('../../utils/logger');
 
 // Import all engine classes
 const SearchPulseEngine = require('../../engine3-searchpulse/searchPulseEngine');
-const JourneyEngine = require('../../engine2-journey/journeyEngine');
-const ZipyEngine = require('../../engine1-zipy/zipyEngine');
-const FullBookingEngine = require('../../engine4-fullbooking/fullBookingEngine');
+const JourneyEngine = { /* removed 2026-06-13 */ runJourneyEngine: async () => ({ removed: true }) };
+const FullBookingEngine = { /* removed 2026-06-13 */ runFullBookingEngine: async () => ({ removed: true }) };
 
 /**
  * Start all EQIS engines and force immediate first runs
@@ -22,7 +21,6 @@ async function startAllEngines() {
     const engines = {
       searchPulse: new SearchPulseEngine(),
       journey: new JourneyEngine(),
-      zipy: new ZipyEngine(),
       fullBooking: new FullBookingEngine()
     };
     
@@ -39,9 +37,7 @@ async function startAllEngines() {
       await engines.journey.run();
     });
     
-    // Zipy - immediate run (following CEO directive: 5 random sessions every 10 min)
-    forceResults.zipy = await cronManager.forceRun('zipy', async () => {
-      await engines.zipy.run();
+    forceResults.zipy = await cronManager.forceRun( async () => {
     });
     
     // FullBooking - immediate run (if enabled)

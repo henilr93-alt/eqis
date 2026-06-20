@@ -25,8 +25,8 @@ class CronManager {
         this.state = {
           searchPulse: { status: 'paused', lastRun: null },
           journey: { status: 'paused', lastRun: null },
-          zipy: { status: 'paused', lastRun: null },
-          fullBooking: { status: 'paused', lastRun: null }
+          fullBooking: { status: 'paused', lastRun: null },
+          ecd: { status: 'paused', lastRun: null }
         };
         this.saveState();
       }
@@ -35,8 +35,8 @@ class CronManager {
       this.state = {
         searchPulse: { status: 'paused', lastRun: null },
         journey: { status: 'paused', lastRun: null },
-        zipy: { status: 'paused', lastRun: null },
-        fullBooking: { status: 'paused', lastRun: null }
+        fullBooking: { status: 'paused', lastRun: null },
+        ecd: { status: 'paused', lastRun: null }
       };
     }
   }
@@ -96,7 +96,14 @@ class CronManager {
     return false;
   }
 
-  stop(name) {
+  stop(name, opts = {}) {
+    // CEO HARD RULE 2026-05-28: protected engines (SearchPulse) only stop
+    // when the user explicitly clicks Stop on the dashboard. Any code path
+    // that calls stop(name) without { userExplicit: true } gets refused.
+    if (this.isProtected(name) && opts.userExplicit !== true) {
+      logger.info(`[CRON] stop(${name}) refused — protected engine, only stops on explicit user action`);
+      return false;
+    }
     const job = this.jobs.get(name);
     if (job) {
       job.stop();
@@ -111,7 +118,7 @@ class CronManager {
   // New method: Start all engines at once
   startAll() {
     const results = {};
-    const engines = ['searchPulse', 'journey', 'zipy', 'fullBooking'];
+    const engines = ['searchPulse', 'journey', 'fullBooking'];
     
     for (const engine of engines) {
       results[engine] = this.start(engine);
@@ -121,15 +128,39 @@ class CronManager {
     return results;
   }
 
+  // ── PROTECTED ENGINES (CEO HARD RULE 2026-05-28) ──────────────────
+  // SearchPulse is auto-protected: it starts on every boot and CANNOT be
+  // paused by automatic actions (FRAKA sleep, stopAll, etc.). It can only
+  // be stopped via an EXPLICIT user request — i.e. a call to this.stop()
+  // with { userExplicit: true } in the options.
+  // SearchPulse parent + all 4 sub-engines are protected (CEO directive #5).
+  get PROTECTED_ENGINES() {
+    return new Set([
+      'searchPulse',
+      'searchPulse.flightDom',
+      'searchPulse.flightIntl',
+      'searchPulse.hotelDom',
+      'searchPulse.hotelIntl',
+    ]);
+  }
+
+  isProtected(name) { return this.PROTECTED_ENGINES.has(name); }
+
   // New method: Stop all engines at once
-  stopAll() {
+  stopAll(opts = {}) {
     const results = {};
-    const engines = ['searchPulse', 'journey', 'zipy', 'fullBooking'];
-    
+    const engines = ['searchPulse', 'journey', 'fullBooking'];
+    const allowProtected = opts.userExplicit === true;
+
     for (const engine of engines) {
+      if (this.isProtected(engine) && !allowProtected) {
+        results[engine] = 'protected-skipped';
+        logger.info(`[CRON] stopAll: skipping protected engine ${engine} (auto-stop ignored — CEO hard rule)`);
+        continue;
+      }
       results[engine] = this.stop(engine);
     }
-    
+
     logger.info('Stopped all engines:', results);
     return results;
   }
@@ -163,7 +194,7 @@ class CronManager {
 
   // New method: Get status of all engines
   getAllStatus() {
-    const engines = ['searchPulse', 'journey', 'zipy', 'fullBooking'];
+    const engines = ['searchPulse', 'journey', 'fullBooking'];
     const status = {};
     
     for (const engine of engines) {
@@ -233,11 +264,27 @@ class CronManager {
     }
     return pattern;
   }
-
-  scheduleZipy(p) { return this._scheduleEngine('zipy', p); }
   scheduleJourney(p) { return this._scheduleEngine('journey', p); }
-  scheduleSearchPulse(p) { return this._scheduleEngine('searchPulse', p); }
+  // BACKWARD COMPAT: single-value scheduleSearchPulse applies the same value to all 4 sub-engines.
+  scheduleSearchPulse(p) {
+    return this.scheduleSearchPulseAll({ flightDom: p, flightIntl: p, hotelDom: p, hotelIntl: p });
+  }
+  // NEW (CEO 2026-06-01): per-sub-engine schedules. Each sub-engine = own cron job.
+  scheduleSearchPulseAll(perSub) {
+    const map = perSub || {};
+    const out = {};
+    if (map.flightDom  !== undefined) out.flightDom  = this._scheduleEngine('searchPulse.flightDom',  map.flightDom);
+    if (map.flightIntl !== undefined) out.flightIntl = this._scheduleEngine('searchPulse.flightIntl', map.flightIntl);
+    if (map.hotelDom   !== undefined) out.hotelDom   = this._scheduleEngine('searchPulse.hotelDom',   map.hotelDom);
+    if (map.hotelIntl  !== undefined) out.hotelIntl  = this._scheduleEngine('searchPulse.hotelIntl',  map.hotelIntl);
+    return out;
+  }
   scheduleFullBooking(p) { return this._scheduleEngine('fullBooking', p); }
+  scheduleEcd(p) { return this._scheduleEngine('ecd', p); }
+  // List of SearchPulse sub-engine names (used by other modules)
+  get SEARCH_PULSE_SUB_ENGINES() {
+    return ['searchPulse.flightDom', 'searchPulse.flightIntl', 'searchPulse.hotelDom', 'searchPulse.hotelIntl'];
+  }
 
   // Intervals persistence
   _intervalsFile() { return path.join(__dirname, '../state/intervals.json'); }
@@ -245,35 +292,80 @@ class CronManager {
   getIntervals() {
     try {
       const d = JSON.parse(fs.readFileSync(this._intervalsFile(), 'utf-8'));
+      // SearchPulse: prefer nested per-sub-engine map; fall back to legacy flat field.
+      const sp = d.searchPulse && typeof d.searchPulse === 'object'
+        ? d.searchPulse
+        : { flightDom: d.searchPulseMinutes || 3, flightIntl: d.searchPulseMinutes || 3, hotelDom: d.searchPulseMinutes || 3, hotelIntl: d.searchPulseMinutes || 3 };
+      const searchPulse = {
+        flightDom:  Math.max(1, parseInt(sp.flightDom,  10) || 3),
+        flightIntl: Math.max(1, parseInt(sp.flightIntl, 10) || 3),
+        hotelDom:   Math.max(1, parseInt(sp.hotelDom,   10) || 3),
+        hotelIntl:  Math.max(1, parseInt(sp.hotelIntl,  10) || 3),
+      };
       return {
-        searchPulseMinutes: d.searchPulseMinutes || 10,
+        searchPulse,
+        // legacy field still exposed (= min of the 4 sub-engine intervals) for backward compatibility
+        searchPulseMinutes: Math.min(searchPulse.flightDom, searchPulse.flightIntl, searchPulse.hotelDom, searchPulse.hotelIntl),
         journeyMinutes: d.journeyMinutes || 30,
-        zipyMinutes: d.zipyMinutes || 10,
         fullBookingMinutes: d.fullBookingMinutes || 60,
+        ecdMinutes: d.ecdMinutes || 15,
       };
     } catch {
-      return { searchPulseMinutes: 10, journeyMinutes: 30, zipyMinutes: 10, fullBookingMinutes: 60 };
+      const sp = { flightDom: 3, flightIntl: 3, hotelDom: 3, hotelIntl: 3 };
+      return { searchPulse: sp, searchPulseMinutes: 3, journeyMinutes: 30, fullBookingMinutes: 60, ecdMinutes: 15 };
     }
   }
 
   updateIntervals(newI) {
     const cur = this.getIntervals();
-    const updated = { ...cur, ...newI };
+    // Merge sub-engine map separately (deep merge)
+    const mergedSP = { ...cur.searchPulse };
+    if (newI.searchPulse && typeof newI.searchPulse === 'object') {
+      for (const k of ['flightDom', 'flightIntl', 'hotelDom', 'hotelIntl']) {
+        if (newI.searchPulse[k] !== undefined) {
+          const v = parseInt(newI.searchPulse[k], 10);
+          if (isFinite(v) && v >= 1) mergedSP[k] = v;
+        }
+      }
+    }
+    // Legacy: searchPulseMinutes sets all 4 to same value
+    if (newI.searchPulseMinutes !== undefined) {
+      const v = parseInt(newI.searchPulseMinutes, 10);
+      if (isFinite(v) && v >= 1) {
+        mergedSP.flightDom = v; mergedSP.flightIntl = v; mergedSP.hotelDom = v; mergedSP.hotelIntl = v;
+      }
+    }
+    const updated = {
+      searchPulse: mergedSP,
+      journeyMinutes: newI.journeyMinutes !== undefined ? newI.journeyMinutes : cur.journeyMinutes,
+      fullBookingMinutes: newI.fullBookingMinutes !== undefined ? newI.fullBookingMinutes : cur.fullBookingMinutes,
+      ecdMinutes: newI.ecdMinutes !== undefined ? newI.ecdMinutes : cur.ecdMinutes,
+    };
     fs.writeFileSync(this._intervalsFile(), JSON.stringify(updated, null, 2));
-    if (newI.searchPulseMinutes !== undefined) this.scheduleSearchPulse(updated.searchPulseMinutes);
+    // Re-schedule whatever was touched
+    if (newI.searchPulse || newI.searchPulseMinutes !== undefined) {
+      this.scheduleSearchPulseAll(mergedSP);
+    }
     if (newI.journeyMinutes !== undefined) this.scheduleJourney(updated.journeyMinutes);
-    if (newI.zipyMinutes !== undefined) this.scheduleZipy(updated.zipyMinutes);
     if (newI.fullBookingMinutes !== undefined) this.scheduleFullBooking(updated.fullBookingMinutes);
+    if (newI.ecdMinutes !== undefined) this.scheduleEcd(updated.ecdMinutes);
+    // Augment returned shape with legacy field for backward compat
+    updated.searchPulseMinutes = Math.min(mergedSP.flightDom, mergedSP.flightIntl, mergedSP.hotelDom, mergedSP.hotelIntl);
     return updated;
   }
 
   getCronPatterns() {
     const i = this.getIntervals();
     return {
-      searchPulse: this._buildCronPattern(i.searchPulseMinutes),
+      searchPulse: {
+        flightDom:  this._buildCronPattern(i.searchPulse.flightDom),
+        flightIntl: this._buildCronPattern(i.searchPulse.flightIntl),
+        hotelDom:   this._buildCronPattern(i.searchPulse.hotelDom),
+        hotelIntl:  this._buildCronPattern(i.searchPulse.hotelIntl),
+      },
       journey: this._buildCronPattern(i.journeyMinutes),
-      zipy: this._buildCronPattern(i.zipyMinutes),
       fullBooking: this._buildCronPattern(i.fullBookingMinutes),
+      ecd: this._buildCronPattern(i.ecdMinutes),
     };
   }
 
@@ -283,7 +375,8 @@ class CronManager {
     if (enabled) {
       this.start(name);
     } else {
-      this.stop(name);
+      // Dashboard toggle = explicit user action — bypass protection
+      this.stop(name, { userExplicit: true });
     }
     return this.state[name] || { status: enabled ? 'running' : 'paused' };
   }
@@ -315,14 +408,32 @@ class CronManager {
   resumeAllEngines() { return this.startAll(); }
   getEngineStates() {
     const result = {};
-    for (const name of ['searchPulse', 'journey', 'zipy', 'fullBooking']) {
+    for (const name of ['searchPulse', 'journey', 'fullBooking']) {
       result[name] = this.state[name]?.status || 'paused';
     }
+    // also surface the 4 SearchPulse sub-engine statuses
+    for (const sub of this.SEARCH_PULSE_SUB_ENGINES) {
+      result[sub] = this.state[sub]?.status || 'paused';
+    }
+    // ECD comparator (toggleable but was missing from this roll-up)
+    result['ecd'] = this.state['ecd']?.status || 'paused';
+    // Engine 9: merged Flight INTL Audit
+    result['flightIntlAudit'] = this.state['flightIntlAudit']?.status || 'paused';
     return result;
   }
   applyPersistedState() { this.loadState(); }
 
-  get VALID_ENGINES() { return ['searchPulse', 'journey', 'zipy', 'fullBooking']; }
+  get VALID_ENGINES() {
+    return [
+      'searchPulse', 'journey', 'fullBooking', 'ecd',
+      'searchPulse.flightDom', 'searchPulse.flightIntl', 'searchPulse.hotelDom', 'searchPulse.hotelIntl',
+      // Engine 9: merged Flight INTL Audit (additive; not auto-started).
+      'flightIntlAudit',
+    ];
+  }
+
+  // Engine 9 convenience scheduler (mirrors scheduleEcd). Pattern or minutes.
+  scheduleFlightIntlAudit(p) { return this._scheduleEngine('flightIntlAudit', p); }
 }
 
 module.exports = new CronManager();

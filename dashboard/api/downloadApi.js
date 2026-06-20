@@ -12,7 +12,7 @@ function downloadApi(req, res) {
       filename = [req.params.a, req.params.b, req.params.c].filter(Boolean).join('/');
     }
 
-    const allowedTypes = ['journey', 'zipy', 'searchpulse', 'fullbooking', 'recordings'];
+    const allowedTypes = ['journey', 'searchpulse', 'fullbooking', 'recordings'];
     if (!allowedTypes.includes(type)) {
       return res.status(400).json({ error: 'Invalid report type' });
     }

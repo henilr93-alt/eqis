@@ -15,7 +15,6 @@ const { listProposals } = require('./tools/listProposals');
 const { getRecentFeedback } = require('./tools/techFeedback');
 const { buildProjectTree, readProjectFile } = require('./tools/codeReader');
 const ceoDirectives = require('./ceoDirectives');
-const { ZIPY_KNOWLEDGE } = require('./zipyKnowledge');
 
 /**
  * Build a compact context blob to inject into the chat prompt.
@@ -204,10 +203,8 @@ async function handleChatMessage(role, message, replyTo = null) {
     message,
   ].filter(Boolean).join('\n');
 
-  // Call Haiku for fast chat response — inject Zipy knowledge into system prompt
-  const systemPromptWithZipy = FRAKA_CHAT_PROMPT + '\n\n' + ZIPY_KNOWLEDGE;
   const reply = await callClaude({
-    system: systemPromptWithZipy,
+    system: FRAKA_CHAT_PROMPT,
     userText: userPrompt,
     model: settings.FRAKA_CHAT_MODEL,
     maxTokens: 800,

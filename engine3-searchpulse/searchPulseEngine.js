@@ -1,21 +1,43 @@
 const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
+const searchPulseActivity = require('../utils/searchPulseActivity');
 const { getLocalDateString, getLocalTimeString, getLocalTimestamp } = require('../utils/timezone');
-const browserModule = require('../engine2-journey/browser');
-const login = require('../engine2-journey/login');
+const browserModule = require('../utils/etravBrowser');
+const login = require('../utils/etravLogin');
 const { pickPulseScenarios } = require('./pulsePicker');
 const { runFlightSearchPulse } = require('./flightSearchPulse');
 const { runHotelSearchPulse } = require('./hotelSearchPulse');
-const trendCache = require('../engine1-zipy/trendCache');
+const trendCache = require('../utils/trendCache');
 const searchPulseReportBuilder = require('../reporter/searchPulseReportBuilder');
 const settings = require('../config/settings');
 const { escalateToEtravCMT, MAX_ESCALATIONS_PER_PULSE } = require('./cmtEscalator');
 const { shouldRecord, createRecordingPage, cleanupOldRecordings} = require('../utils/sessionRecorder');
 
-// FIX 5: Pulse lock to prevent concurrent pulse runs. A pulse can take 2-3 minutes.
-// The cron fires every 1 min — without this lock, pulses overlap and compete for resources.
-let _pulseRunning = false;
+// FIX 5 (2026-06-14 update): per-sub-engine lock + 8-min watchdog. Was a single
+// shared flag across all 4 sub-engines which serialised Flight INTL (*/2)
+// behind Hotel/Flight DOM (*/5) and dropped cron ticks (one hung pulse froze
+// the whole grid for 104 min). Now each sub-engine has its own lock; a hang
+// on one sub-engine cannot freeze the others; per-sub-engine self-overlap
+// protection (Etrav login session) is preserved.
+const _subEngineLocks = new Map();              // subEngineKey -> heldSinceMs
+const _PULSE_LOCK_WATCHDOG_MS = 8 * 60 * 1000;  // 8 min — well above 360s SEARCH_HARD_TIMEOUT
+
+function _lockKey(opts) {
+  return (opts && opts.subEngine) ? String(opts.subEngine) : '_default';
+}
+function _tryAcquireLock(opts) {
+  const k = _lockKey(opts);
+  const heldSince = _subEngineLocks.get(k);
+  if (heldSince) {
+    const ageMs = Date.now() - heldSince;
+    if (ageMs < _PULSE_LOCK_WATCHDOG_MS) return false;
+    logger.warn('[PULSE-LOCK] watchdog: force-releasing stale lock for ' + k + ' (held ' + Math.round(ageMs / 1000) + 's)');
+  }
+  _subEngineLocks.set(k, Date.now());
+  return true;
+}
+function _releaseLock(opts) { _subEngineLocks.delete(_lockKey(opts)); }
 
 function generatePulseId() {
   return `PULSE-${getLocalDateString()}-${getLocalTimeString().replace(':', '')}`;
@@ -70,15 +92,27 @@ function computeSearchRating(result) {
   const isSuccess = (result.resultCount || 0) > 0;
   const isFlight = !!result.sector;
   const isDom = result.scenarioType === 'domestic';
+  const status = result.searchStatus;
 
-  // SPF = SearchPulse Failure — automation issue, not Etrav platform issue
-  // Conditions: 0.0s duration + FAILED status + form never submitted (no results URL)
+  // AUTOMATION_* statuses are internal SearchPulse failures (not Etrav issues).
+  // They should be classified as SPF — never escalated to CMT.
+  if (status === 'AUTOMATION_DATE_INCOMPLETE' ||
+      status === 'AUTOMATION_FIELD_INCOMPLETE' ||
+      status === 'AUTOMATION_FORM_RESET') {
+    return 'SPF';
+  }
+
+  // SPF = SearchPulse Failure — automation issue, not Etrav platform issue.
+  // Conditions: 0.0s duration + FAILED status + form never submitted (no results URL).
   const url = result.searchUrl || '';
   const formSubmitted = isFlight
     ? (url.includes('/flights/oneway') || url.includes('/flights/roundtrip'))
     : url.includes('/hotels/search-results');
-  if (sec === 0 && result.searchStatus === 'FAILED' && !formSubmitted) return 'SPF';
-  if (result.searchStatus === 'AUTOSUGGEST_DOWN') return 'FAILURE!!!'; // Etrav issue — escalate
+  if (sec === 0 && status === 'FAILED' && !formSubmitted) return 'SPF';
+
+  // Real Etrav platform issues — escalate to CMT.
+  if (status === 'AUTOSUGGEST_DOWN') return 'FAILURE!!!';
+  if (status === 'ETRAV_FORM_CRASH') return 'FAILURE!!!';
 
   if (!isSuccess || sec === 0 || sec >= 100) return 'FAILURE!!!';
   if (isFlight) {
@@ -108,36 +142,86 @@ async function writeSearchQualitySignal(pulseData) {
     overallHealth: pulseData.overallHealth,
     criticalAlerts: pulseData.criticalAlerts || [],
     apiHealthSignals: pulseData.apiHealthSignals,
+    // 2026-06-11: surface searchUrl + scenario id in summary projections so
+    // utils/dailyDigestScheduler can show engineers the actual Etrav URL each
+    // failure was tracked against (one-click reproduce from the email).
     flightSummary: pulseData.flightPulses.map(p => ({
-      label: p.label, status: p.searchStatus,
+      label: p.label, status: p.searchStatus, searchId: p.searchId || '',
       resultCount: p.resultCount, loadTimeMs: p.loadTimeMs,
+      url: p.searchUrl || '', sector: p.sector || '',
       filtersWorking: p.filtersWorking, apiErrors: p.apiErrors,
     })),
     hotelSummary: pulseData.hotelPulses.map(p => ({
-      label: p.label, status: p.searchStatus,
+      label: p.label, status: p.searchStatus, searchId: p.searchId || '',
       resultCount: p.resultCount, loadTimeMs: p.loadTimeMs,
+      url: p.searchUrl || '', destination: p.destination || '',
       filtersWorking: p.filtersWorking, apiErrors: p.apiErrors,
     })),
   };
   const sigPath = path.join(__dirname, '..', 'state', 'searchQualitySignal.json');
   fs.writeFileSync(sigPath, JSON.stringify(signal, null, 2));
+
+  // 2026-06-11: also append every non-SUCCESS pulse (with full searchUrl) to a
+  // rolling 48h ledger that the daily-digest emailer reads to enrich the
+  // tech-team failure table with real reproduce URLs. Purely additive.
+  try {
+    const failPath = path.join(__dirname, '..', 'state', 'searchPulseRecentFailures.json');
+    let store = [];
+    try {
+      if (fs.existsSync(failPath)) {
+        const raw = JSON.parse(fs.readFileSync(failPath, 'utf-8'));
+        if (raw && Array.isArray(raw.failures)) store = raw.failures;
+      }
+    } catch { /* corrupt — start fresh */ }
+    const now = new Date().toISOString();
+    const allPulses = [
+      ...pulseData.flightPulses.map(p => ({ ...p, _engineType: 'flight' })),
+      ...pulseData.hotelPulses.map(p => ({ ...p, _engineType: 'hotel' })),
+    ];
+    for (const p of allPulses) {
+      if (!p.searchStatus || p.searchStatus === 'SUCCESS') continue;
+      store.unshift({
+        timestamp: now,
+        pulseId: pulseData.pulseId,
+        engineType: p._engineType,
+        scenarioId: p.searchId || '',
+        scenarioType: p.scenarioType || '',
+        label: p.label || '',
+        sector: p.sector || p.destination || '',
+        status: p.searchStatus,
+        loadTimeMs: p.loadTimeMs || 0,
+        url: p.searchUrl || '',
+        failureReason: (p.failureReason || '').slice(0, 300),
+        screenshotPath: p.screenshotPath || '',
+      });
+    }
+    const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+    store = store
+      .filter(e => { const t = new Date(e.timestamp).getTime(); return isFinite(t) && t >= cutoff; })
+      .slice(0, 100);
+    fs.writeFileSync(failPath, JSON.stringify({ updatedAt: now, failures: store }, null, 2));
+  } catch (err) {
+    logger.warn('[PULSE] Recent-failures ledger write skipped: ' + err.message);
+  }
 }
 
-async function runSearchPulseEngine() {
-  // FIX 5: Skip if another pulse is already running
-  if (_pulseRunning) {
-    logger.info('[PULSE] Skipped — previous pulse still running');
+async function runSearchPulseEngine(options) {
+  const opts = options || {};
+  // FIX 5 (2026-06-14): per-sub-engine lock so Flight INTL is not blocked by
+  // Hotel/Flight DOM pulses. Same sub-engine still cannot overlap itself.
+  if (!_tryAcquireLock(opts)) {
+    logger.info('[PULSE] Skipped (' + _lockKey(opts) + ') — same sub-engine pulse still running');
     return { success: false, skipped: true, reason: 'pulse_already_running' };
   }
-  _pulseRunning = true;
   try {
-    return await _runSearchPulseEngineInternal();
+    return await _runSearchPulseEngineInternal(opts);
   } finally {
-    _pulseRunning = false;
+    _releaseLock(opts);
   }
 }
 
-async function _runSearchPulseEngineInternal() {
+async function _runSearchPulseEngineInternal(opts) {
+  opts = opts || {};
   const { resetSessionTokens, getSessionTokens, getSessionEvalModes } = require('../utils/tokenOptimizer');
   const { writeMetrics } = require('../utils/metricsWriter');
   resetSessionTokens();
@@ -163,7 +247,23 @@ async function _runSearchPulseEngineInternal() {
     const trendData = trendCache.read();
 
     // Pick what to search this pulse
-    const { flightSearches, hotelSearches } = pickPulseScenarios(trendData);
+    let { flightSearches, hotelSearches } = pickPulseScenarios(trendData);
+    // Per-sub-engine filter (CEO 2026-06-01): if a single sub-engine is requested,
+    // keep only that one scenario kind. opts.subEngine = 'flight-dom' | 'flight-intl' | 'hotel-dom' | 'hotel-intl'
+    if (opts.subEngine === 'flight-dom') {
+      flightSearches = flightSearches.filter(s => (s.type || 'domestic') === 'domestic');
+      hotelSearches = [];
+    } else if (opts.subEngine === 'flight-intl') {
+      flightSearches = flightSearches.filter(s => s.type === 'international');
+      hotelSearches = [];
+    } else if (opts.subEngine === 'hotel-dom') {
+      flightSearches = [];
+      hotelSearches = hotelSearches.filter(s => (s.type || 'domestic') === 'domestic');
+    } else if (opts.subEngine === 'hotel-intl') {
+      flightSearches = [];
+      hotelSearches = hotelSearches.filter(s => s.type === 'international');
+    }
+    logger.info('[PULSE] ' + (opts.subEngine || 'ALL') + ' — flight:' + flightSearches.length + ' hotel:' + hotelSearches.length);
 
     // Launch browser + login (always headless for searches)
     const browserResult = await browserModule.launch();
@@ -175,8 +275,17 @@ async function _runSearchPulseEngineInternal() {
     // Quick health check: verify Etrav search page loads and form is responsive
     // If the autosuggest API is down, skip this pulse to avoid wasting time
     try {
-      await page.goto('https://new.etrav.in/flights', { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await page.waitForSelector('input[placeholder="Where From ?"], input.react-autosuggest__input', { timeout: 15000 });
+      // CEO Directive #1 (revised): Etrav now routes post-login to /dashboard
+      // (changed alongside the cross-context cookie tightening on 2026-06-09).
+      // Only navigate to /flights when not already there — and only from inside
+      // the freshly-authenticated main page context, where the in-context cookie
+      // is valid and the goto is NOT server-redirected to the marketing site.
+      const urlAfterLogin = page.url();
+      if (!urlAfterLogin.includes('new.etrav.in/flights')) {
+        await page.goto('https://new.etrav.in/flights', { waitUntil: 'domcontentloaded', timeout: 30000 });
+      }
+      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+      await page.waitForSelector('input[placeholder="Where From ?"], input.react-autosuggest__input', { timeout: 30000 });
       await page.waitForTimeout(1000);
       // Test autosuggest by typing a common city
       const testInput = await page.$('input[placeholder="Where From ?"]');
@@ -219,6 +328,14 @@ async function _runSearchPulseEngineInternal() {
     async function runFlightWithRecording(flightScenario) {
       let result;
       let recorder = null;
+      // SP-LIVE-BAR (start): record what this Flight sub-engine is doing
+      const _spFlightCat = (flightScenario.type === 'international') ? 'flight-intl' : 'flight-dom';
+      try {
+        const _from = flightScenario.from || '?';
+        const _to   = flightScenario.to   || '?';
+        const _cab  = flightScenario.cabin || flightScenario.cabinClass || 'Economy';
+        searchPulseActivity.set(_spFlightCat, 'pulse', 'Searching ' + _from + '→' + _to + ' ' + _cab);
+      } catch {}
       try {
         recorder = await createRecordingPage(browser, page, String(Math.floor(10000 + Math.random() * 90000)), 'https://new.etrav.in/flights');
         result = await runFlightSearchPulse((recorder && recorder.recPage) || page, flightScenario, pulseId);
@@ -255,12 +372,23 @@ async function _runSearchPulseEngineInternal() {
           }
         }
       }
+      // SP-LIVE-BAR (end): mark Flight sub-engine idle with last result
+      try {
+        searchPulseActivity.setIdle(_spFlightCat, 'Last result: ' + (result && result.searchStatus || 'UNKNOWN'));
+      } catch {}
       return result;
     }
 
     async function runHotelWithRecording(hotelScenario) {
       let hotelResult;
       let recorderH = null;
+      // SP-LIVE-BAR (start): record what this Hotel sub-engine is doing
+      const _spHotelCat = (hotelScenario.type === 'international') ? 'hotel-intl' : 'hotel-dom';
+      try {
+        const _dest    = hotelScenario.destination || '?';
+        const _nights  = hotelScenario.nights || 1;
+        searchPulseActivity.set(_spHotelCat, 'pulse', 'Searching ' + _dest + ' ' + _nights + ' nights');
+      } catch {}
       try {
         recorderH = await createRecordingPage(browser, page, String(Math.floor(10000 + Math.random() * 90000)), 'https://new.etrav.in/hotels');
         hotelResult = await runHotelSearchPulse((recorderH && recorderH.recPage) || page, hotelScenario, pulseId);
@@ -329,6 +457,10 @@ async function _runSearchPulseEngineInternal() {
           }
         }
       }
+      // SP-LIVE-BAR (end): mark Hotel sub-engine idle with last result
+      try {
+        searchPulseActivity.setIdle(_spHotelCat, 'Last result: ' + (hotelResult && hotelResult.searchStatus || 'UNKNOWN'));
+      } catch {}
       return hotelResult;
     }
 
@@ -346,23 +478,57 @@ async function _runSearchPulseEngineInternal() {
 
     logger.info('[PULSE] Running ' + flightSearches.length + ' flight + ' + (hotelSearches||[]).length + ' hotel searches in PARALLEL (staggered ' + STAGGER_MS/1000 + 's)');
 
-    // MEMORY-AWARE execution: run at most `MAX_PARALLEL_SEARCHES` searches at a
-    // time. On Railway (512MB), set MAX_PARALLEL_SEARCHES=1 to serialize —
-    // Chromium + ffmpeg + recording all fighting for the same 512MB causes OOM
-    // kills (witnessed: ffmpeg "Killed" mid-MP4, Playwright "Target crashed").
-    // Default 4 retains existing behavior for local dev.
-    const maxParallel = Math.max(1, parseInt(process.env.MAX_PARALLEL_SEARCHES || '4', 10));
+    // SERIAL BY DEFAULT (changed 2026-05-25 after SPF flood): parallel runs at
+    // concurrency=4 caused CPU contention that broke the date picker (return
+    // click rejected because Etrav React hadn't committed departure yet — log
+    // "Return?-" with empty wrapper) AND pax fill (log "target 1A 4C 0I →
+    // actual 0A 0C 0I"). Serial is slower but reliable. Override via env
+    // MAX_PARALLEL_SEARCHES=4 only after the React-commit race is hardened.
+    const maxParallel = Math.max(1, parseInt(process.env.MAX_PARALLEL_SEARCHES || '1', 10));
     logger.info('[PULSE] Running ' + allScenarios.length + ' searches with concurrency=' + maxParallel + ' (stagger ' + STAGGER_MS/1000 + 's)');
+    // PER-SEARCH HARD TIMEOUT (added 2026-05-25 after pulse-lock incident):
+    // If any single search hangs (witnessed: JED→CCJ at 17:45 — Playwright internal
+    // wait never returned, no log output for 70+ min, lock never released, EVERY
+    // subsequent cron fire was skipped). Race each search against a 6-minute
+    // hard cap so the pulse always finishes and releases `_pulseRunning`.
+    const SEARCH_HARD_TIMEOUT_MS = 6 * 60 * 1000;
+    const withHardTimeout = (item, p) => Promise.race([
+      p,
+      new Promise((_, reject) => setTimeout(
+        () => reject(new Error('SEARCH_HARD_TIMEOUT after ' + (SEARCH_HARD_TIMEOUT_MS / 1000) + 's — search hung; pulse advances to free the lock')),
+        SEARCH_HARD_TIMEOUT_MS
+      ))
+    ]);
+
     const parallelResults = [];
+    // 2026-06-08 (cleanup race fix): collect the RAW work promises in addition
+    // to the timeout-raced ones. Promise.race rejects the racer when the hard
+    // timeout fires, but the underlying Playwright work keeps running. Without
+    // draining those, browser.close() at line ~531 fires while they're still
+    // awaiting on the page, producing "Target page, context or browser has
+    // been closed" errors that got blamed on Etrav.
+    const inFlightWorks = [];
     for (let batchStart = 0; batchStart < allScenarios.length; batchStart += maxParallel) {
       const batch = allScenarios.slice(batchStart, batchStart + maxParallel);
       const batchPromises = batch.map((item, idx) => {
-        return new Promise(resolve => setTimeout(resolve, idx * STAGGER_MS))
-          .then(() => item.kind === 'flight' ? runFlightWithRecording(item.scenario) : runHotelWithRecording(item.scenario));
+        const stagger = new Promise(resolve => setTimeout(resolve, idx * STAGGER_MS));
+        const work = stagger.then(() => item.kind === 'flight' ? runFlightWithRecording(item.scenario) : runHotelWithRecording(item.scenario));
+        inFlightWorks.push(work);
+        return withHardTimeout(item, work);
       });
       const batchResults = await Promise.allSettled(batchPromises);
       for (const r of batchResults) parallelResults.push(r);
     }
+    // 2026-06-08 grace drain: give the raw work promises up to 45 s to finish
+    // their own cleanup paths after Promise.allSettled returns. This prevents
+    // browser.close() from killing in-flight Playwright operations.
+    try {
+      await Promise.race([
+        Promise.allSettled(inFlightWorks),
+        new Promise(resolve => setTimeout(resolve, 45000)),
+      ]);
+      logger.info('[PULSE] in-flight work drained — safe to close browser');
+    } catch { /* drain is best-effort */ }
 
     // Split results back into flight/hotel arrays based on the original allScenarios order
     for (let i = 0; i < allScenarios.length; i++) {

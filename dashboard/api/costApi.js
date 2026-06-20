@@ -34,7 +34,7 @@ function costApi(req, res) {
     const cutoff = fromDate || new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     const filtered = history.filter(e => { const t = new Date(e.timestamp); return t >= cutoff && (!toDate || t <= toDate); });
 
-    const engines = ['searchpulse', 'journey', 'zipy', 'fullbooking'];
+    const engines = ['searchpulse', 'journey', 'fullbooking', 'ecd'];
 
     // Per-engine totals
     const engineTotals = {};
@@ -77,8 +77,8 @@ function costApi(req, res) {
       labels: sortedDays,
       searchpulse: sortedDays.map(d => calcCost(byDay[d].searchpulse.inputT, byDay[d].searchpulse.outputT).totalCost),
       journey: sortedDays.map(d => calcCost(byDay[d].journey.inputT, byDay[d].journey.outputT).totalCost),
-      zipy: sortedDays.map(d => calcCost(byDay[d].zipy.inputT, byDay[d].zipy.outputT).totalCost),
       fullbooking: sortedDays.map(d => calcCost(byDay[d].fullbooking.inputT, byDay[d].fullbooking.outputT).totalCost),
+      ecd: sortedDays.map(d => calcCost(byDay[d].ecd.inputT, byDay[d].ecd.outputT).totalCost),
       total: sortedDays.map(d =>
         engines.reduce((sum, eng) => sum + calcCost(byDay[d][eng].inputT, byDay[d][eng].outputT).totalCost, 0)
       ),

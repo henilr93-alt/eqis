@@ -77,7 +77,36 @@ Hard rules:
 - Match the existing coding style (Node.js CommonJS, 2-space indent, single quotes, terminal logging via "../utils/logger").
 - Include inline comments so the tech team can review fast.
 - If the task is ambiguous or unsafe, return an empty "files" array and explain in "plan".
-- Produce no prose outside the JSON.`;
+- Produce no prose outside the JSON.
+
+🛡 CRITICAL FILE-PRESERVATION RULES (the build will be REJECTED if violated):
+
+1. SIZE GUARD: any "update" whose "content" is less than 50% of the existing
+   file size is auto-rejected before write. NEVER strip code from a file to
+   "simplify" it. If the original is 42KB and your update returns 18KB, the
+   build is killed and your fix never ships.
+
+2. SCOPED-PATCH MODE: a fix should change the SMALLEST possible region of
+   the file. If a function has a bug in 5 lines, only those 5 lines change —
+   the other 99% of the file stays IDENTICAL byte-for-byte. Copy the whole
+   file into your "content" field, then modify ONLY the offending lines.
+   Do NOT rewrite functions you weren't asked to touch.
+
+3. NO STYLE REFACTOR: don't change framework (Playwright is the project's
+   browser driver — never propose puppeteer or webdriverio). Don't reformat
+   working code. Don't convert function-style to class-style or vice versa.
+   Don't rename existing exports. The file's existing function signatures
+   and exports MUST remain stable.
+
+4. PRESERVE EXPORTS: the module.exports block must include EVERY symbol the
+   original exported. If you remove a helper that other files import, every
+   downstream search will crash at module load → 100% SPF flood. Treat
+   module.exports as immutable.
+
+5. WHEN IN DOUBT, SHRINK YOUR SCOPE: it's better to ship a 3-line surgical
+   fix that addresses 30% of the failure modes than a full rewrite that
+   addresses 100% on paper but ships broken code. The auditor will see the
+   remaining failures and queue follow-ups.`;
 
 /**
  * Main entry point.
@@ -167,6 +196,69 @@ async function runCoderBuild(task, opts = {}) {
   }
 
   // 3. Write — every planned file goes through the safe writer
+  // PRE-WRITE SIZE GUARD + EXPORT GUARD. The size guard rejects updates that
+  // shrink an existing file by >50% (the truncation-to-zero failure mode
+  // we hit on 2026-05-25). The export guard rejects updates that drop any
+  // symbol the original module.exports declared (the runFlightSearchPulse-
+  // not-a-function failure mode we hit on 2026-05-27).
+  const projectRoot = path.join(__dirname, '..');
+  for (const f of plan.files) {
+    const op = (f.operation || 'update').toLowerCase();
+    if (op !== 'update') continue;
+    const absPath = path.join(projectRoot, f.filePath);
+    let existingBytes = 0;
+    let existingSrc = '';
+    try { existingBytes = fs.statSync(absPath).size; existingSrc = fs.readFileSync(absPath, 'utf-8'); }
+    catch { continue; }
+    const newBytes = Buffer.byteLength(f.content || '', 'utf-8');
+
+    // SIZE GUARD
+    if (existingBytes > 1000 && newBytes < existingBytes * 0.5) {
+      const record = buildRecord(buildId, task, startedAt, 'rejected', {
+        plan: plan.plan || '',
+        error: 'SIZE_GUARD: refusing to shrink ' + f.filePath + ' from ' + existingBytes + ' to ' + newBytes + ' bytes (< 50%). Likely full-file rewrite — request a scoped patch instead.',
+        ceoNote: 'FRAKA aborted a risky code change that would have deleted most of ' + f.filePath + '.',
+        techNote: 'Pre-write size guard rejected update on ' + f.filePath + ': existing=' + existingBytes + 'b, proposed=' + newBytes + 'b.',
+      });
+      persistBuild(record);
+      postBuildReport(record);
+      logger.warn('[FRAKA-CODER] ' + buildId + ' REJECTED by size guard: ' + f.filePath + ' ' + existingBytes + 'b -> ' + newBytes + 'b');
+      return record;
+    }
+
+    // EXPORT GUARD — only for .js files
+    if (/\.js$/.test(f.filePath) && existingSrc) {
+      const extractExports = (src) => {
+        const out = new Set();
+        const m1 = src.match(/module\.exports\s*=\s*\{([^}]+)\}/);
+        if (m1) {
+          for (const part of m1[1].split(',')) {
+            const name = part.trim().split(/[:\s]/)[0];
+            if (name && /^[a-zA-Z_$][\w$]*$/.test(name)) out.add(name);
+          }
+        }
+        const re = /(?:module\.)?exports\.([a-zA-Z_$][\w$]*)\s*=/g;
+        let mm; while ((mm = re.exec(src))) out.add(mm[1]);
+        return out;
+      };
+      const oldExports = extractExports(existingSrc);
+      const newExports = extractExports(f.content || '');
+      const dropped = [...oldExports].filter(s => !newExports.has(s));
+      if (oldExports.size > 0 && dropped.length > 0) {
+        const record = buildRecord(buildId, task, startedAt, 'rejected', {
+          plan: plan.plan || '',
+          error: 'EXPORT_GUARD: refusing to drop exports ' + JSON.stringify(dropped) + ' from ' + f.filePath + '. Original: ' + JSON.stringify([...oldExports]) + '. New: ' + JSON.stringify([...newExports]) + '. Downstream files import these symbols.',
+          ceoNote: 'FRAKA aborted a change that would have removed exports other files depend on.',
+          techNote: 'Export guard rejected update on ' + f.filePath + ': dropped ' + JSON.stringify(dropped) + '. Likely a class-instance-vs-named-function rewrite.',
+        });
+        persistBuild(record);
+        postBuildReport(record);
+        logger.warn('[FRAKA-CODER] ' + buildId + ' REJECTED by export guard: ' + f.filePath + ' dropped ' + JSON.stringify(dropped));
+        return record;
+      }
+    }
+  }
+
   const writeResults = [];
   const backups = [];
   let writeError = null;

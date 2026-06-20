@@ -7,7 +7,6 @@ const REPORTS_DIR = path.join(__dirname, '..', '..', 'reports');
 const FOLDERS = {
   journey: 'journey',
   searchpulse: 'searchpulse',
-  zipy: 'zipy',
   fullbooking: 'fullbooking',
 };
 

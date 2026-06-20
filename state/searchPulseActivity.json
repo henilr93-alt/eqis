@@ -1,0 +1,27 @@
+{
+  "flight-dom": {
+    "step": "idle",
+    "detail": "Last result: FAILED",
+    "updatedAt": "2026-06-20T14:54:54.275Z"
+  },
+  "flight-intl": {
+    "step": "idle",
+    "detail": "Last result: FAILED",
+    "updatedAt": "2026-06-19T20:29:12.092Z"
+  },
+  "hotel-dom": {
+    "step": "idle",
+    "detail": "Last result: SUCCESS",
+    "updatedAt": "2026-06-20T14:58:35.708Z"
+  },
+  "hotel-intl": {
+    "step": "idle",
+    "detail": "Last result: SUCCESS",
+    "updatedAt": "2026-06-20T14:59:00.815Z"
+  },
+  "flight-intl-audit": {
+    "step": "search",
+    "detail": "Searching AMD→BKK Economy",
+    "updatedAt": "2026-06-20T15:02:00.768Z"
+  }
+}

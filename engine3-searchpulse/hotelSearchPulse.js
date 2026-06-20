@@ -78,12 +78,32 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
   try {
     logger.info(`[PULSE] Hotel search: ${scenario.destination} | ${scenario.rooms}R | ${result.paxCount} | ${scenario.nights}N`);
 
-    // Navigate to hotels page directly - using domcontentloaded to prevent timeouts
-    // Hard refresh to clean page state
-    // Navigate to hotels form — skip if already there (recording pre-navigation)
+    // Navigate to hotels form.
+    // CEO Directive #1 (hotel parity): after recording-context in-context login
+    // the page lands on /flights. Etrav's edge (changed ~2026-06-09 18:15 IST)
+    // now rejects cross-context cookies on top-level navigations and 302's to
+    // the etrav.in marketing site. A same-origin client navigation via
+    // window.location.assign preserves the freshly-issued in-context session
+    // cookie and reaches the real hotel form.
     const currentUrl = page.url();
-    if (!currentUrl.includes('/hotels') || currentUrl.includes('/hotels/search-results')) {
-      await page.goto('https://new.etrav.in/hotels', { waitUntil: 'domcontentloaded', timeout: 45000 });
+    const onHotelForm = currentUrl.includes('new.etrav.in/hotels') &&
+      !currentUrl.includes('/hotels/search-results');
+    if (!onHotelForm) {
+      if (currentUrl.includes('new.etrav.in')) {
+        // Trigger same-origin client navigation and wait for it to complete in
+        // ONE atomic step — Promise.all avoids the "Execution context was
+        // destroyed" race that occurs when subsequent evaluate calls hit the
+        // page mid-navigation.
+        await Promise.all([
+          page.waitForURL(/new\.etrav\.in\/hotels/, { timeout: 30000, waitUntil: 'domcontentloaded' }).catch(() => {}),
+          page.evaluate(() => { window.location.assign('https://new.etrav.in/hotels'); }).catch(() => {}),
+        ]);
+        await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
+      } else {
+        await page.goto('https://new.etrav.in/hotels', { waitUntil: 'domcontentloaded', timeout: 45000 });
+      }
+    } else {
+      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     }
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForSelector('input.react-autosuggest__input, input[placeholder="Hotel name or Destination"]', { timeout: 20000 }).catch(() => {});
@@ -332,6 +352,102 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
           logger.warn('[PULSE] Auto-repair of hotel dates failed: ' + repairErr.message);
         }
       }
+
+      // AUTO-REPAIR for BOTH-EMPTY case (fix 2026-05-28 for search 61554-e1gznwp):
+      // when check-in AND check-out are both empty, pickHotelDateRange's first
+      // invocation silently failed (calendar didn't open or first click dropped by
+      // React). We previously fell through and clicked Search Hotel anyway,
+      // triggering Etrav's red "Check-in & out date is required" validation and
+      // a guaranteed SPF. Retry the full range pick once; if it STILL fails,
+      // abort BEFORE clicking submit so the failure is classified as
+      // AUTOMATION_DATE_INCOMPLETE (SPF, not Etrav's fault).
+      if (issuesH.includes('check-in empty') && issuesH.includes('check-out empty')) {
+        try {
+          const checkoutDate2 = new Date(checkinDate);
+          checkoutDate2.setDate(checkoutDate2.getDate() + (scenario.nights || 1));
+          await pickHotelDateRange(page, checkinDate, checkoutDate2);
+          result.actions.push('AUTO-REPAIR (both empty): re-attempted hotel date range');
+        } catch (repairErr2) {
+          logger.warn('[PULSE] Both-empty auto-repair threw: ' + repairErr2.message);
+        }
+        const recheckDates = await page.evaluate(() => {
+          const inputs = document.querySelectorAll('.react-datepicker-wrapper input');
+          return {
+            checkin: inputs[0] ? (inputs[0].value || '').trim() : '',
+            checkout: inputs[1] ? (inputs[1].value || '').trim() : '',
+          };
+        }).catch(() => ({ checkin: '', checkout: '' }));
+        let stillEmpty = (!recheckDates.checkin || recheckDates.checkin === '-') &&
+                         (!recheckDates.checkout || recheckDates.checkout === '-');
+
+        // THIRD-ATTEMPT FALLBACK 2026-05-31 (final-warning Hotel DOM escalation):
+        // The standard pickHotelDateRange (sequential open-pick-close) has now failed
+        // twice on this search. Try one more time by opening the two date wrappers
+        // directly through the page itself rather than going through their labels.
+        // Mirrors the flight separate-wrapper fallback shipped earlier today.
+        if (stillEmpty) {
+          logger.info('[PULSE] Hotel BOTH-EMPTY: trying separate-wrapper open fallback (third attempt)');
+          try {
+            const checkoutDate3 = new Date(checkinDate);
+            checkoutDate3.setDate(checkoutDate3.getDate() + (scenario.nights || 1));
+            const sepResult = await page.evaluate(async () => { /* no-op probe */ return true; }).catch(() => false);
+            if (sepResult) {
+              const wrappersH = await page.$$('.react-datepicker-wrapper');
+              if (wrappersH[0]) {
+                await wrappersH[0].click({ force: true });
+                await page.waitForTimeout(1100);
+                if (await page.$('.react-datepicker')) {
+                  await page.keyboard.press('Escape').catch(() => {});
+                  await page.waitForTimeout(300);
+                }
+              }
+              if (wrappersH[1]) {
+                await wrappersH[1].click({ force: true });
+                await page.waitForTimeout(1100);
+                if (await page.$('.react-datepicker')) {
+                  await page.keyboard.press('Escape').catch(() => {});
+                  await page.waitForTimeout(300);
+                }
+              }
+              // Now re-run pickHotelDateRange with fresh calendar state
+              await pickHotelDateRange(page, checkinDate, checkoutDate3);
+              result.actions.push('FALLBACK (separate-wrapper open): re-attempted hotel date range');
+              const finalCheck = await page.evaluate(() => {
+                const inputs = document.querySelectorAll('.react-datepicker-wrapper input');
+                return {
+                  checkin: inputs[0] ? (inputs[0].value || '').trim() : '',
+                  checkout: inputs[1] ? (inputs[1].value || '').trim() : '',
+                };
+              }).catch(() => ({ checkin: '', checkout: '' }));
+              const reallyEmpty = (!finalCheck.checkin || finalCheck.checkin === '-') &&
+                                   (!finalCheck.checkout || finalCheck.checkout === '-');
+              if (!reallyEmpty) {
+                logger.info('[PULSE] Hotel BOTH-EMPTY separate-wrapper fallback SUCCEEDED — dates: ' + JSON.stringify(finalCheck));
+                result.actions.push('FALLBACK succeeded — dates now: ' + JSON.stringify(finalCheck));
+                stillEmpty = false;
+              } else {
+                logger.warn('[PULSE] Hotel BOTH-EMPTY separate-wrapper fallback also failed');
+              }
+            }
+          } catch (sepErr) {
+            logger.warn('[PULSE] Hotel BOTH-EMPTY separate-wrapper fallback threw: ' + sepErr.message);
+          }
+        }
+
+        if (stillEmpty) {
+          result.searchStatus = 'AUTOMATION_DATE_INCOMPLETE';
+          result.error = 'Hotel check-in AND check-out dates failed to commit even after retry';
+          result.failureReason = 'AUTOMATION ISSUE: pickHotelDateRange failed twice. Both date fields remained empty. Aborted BEFORE submit so we do not waste a click that Etrav would reject with "Check-in & out date is required" validation (witnessed in search 61554-e1gznwp).';
+          logger.error('[PULSE] ' + result.error);
+          result.screenshot = await screenshotter.takeStep(page, pulseId, 'hotel-pulse-' + scenario.id);
+          if (result.screenshot) {
+            const pathMod = require('path');
+            result.screenshotPath = pathMod.join(__dirname, '..', 'reports', 'journey', pulseId, 'screenshots', 'hotel-pulse-' + scenario.id + '.png');
+          }
+          return result;
+        }
+        result.actions.push('AUTO-REPAIR (both empty) succeeded — dates now: ' + JSON.stringify(recheckDates));
+      }
       // AUTO-RECOVERY: if destination got cleared by a miss-click during pax/date fill,
       // refill it. Submitting an empty destination causes Etrav to crash and produces a
       // misleading AUTOSUGGEST_DOWN diagnosis.
@@ -362,18 +478,38 @@ async function runHotelSearchPulse(page, scenario, pulseId) {
     // Click search (uses multi-strategy click in clickSearchHotels)
     let searchClicked = await clickSearchHotels(page);
 
-    // POST-CLICK AUTO-RETRY: if URL doesn't change in 5s, retry once
+    // POST-CLICK AUTO-RETRY (hardened 2026-05-31 for Hotel INTL final warning):
+    // Click → wait → if URL didn't change, dismiss overlays and try again.
+    // Repeat up to 3 times with progressively longer waits to give Etrav's
+    // slow form-submit handler more chances. Previously this only retried once,
+    // leaving 4 Hotel INTL searches (Pattaya, Hanoi, Krabi, Phuket) stuck on
+    // the form page with no navigation.
     if (searchClicked) {
-      const urlChangedH = await page.waitForFunction(
-        () => /hotels\/search-results/i.test(window.location.href),
-        { timeout: 5000 }
-      ).then(() => true).catch(() => false);
-      if (!urlChangedH) {
-        logger.warn('[PULSE] First hotel search click did not navigate — retrying after dismiss');
-        await dismissAllOverlays(page);
-        await page.waitForTimeout(500);
-        searchClicked = await clickSearchHotels(page);
-        result.actions.push('Hotel search retried after URL no-change');
+      let urlChanged = false;
+      const waits = [5000, 7000, 9000];
+      for (let r = 0; r < waits.length; r++) {
+        urlChanged = await page.waitForFunction(
+          () => /hotels\/search-results/i.test(window.location.href),
+          { timeout: waits[r] }
+        ).then(() => true).catch(() => false);
+        if (urlChanged) {
+          if (r > 0) {
+            logger.info('[PULSE] Hotel search navigated successfully on attempt ' + (r + 1));
+            result.actions.push('Hotel search succeeded on retry ' + (r + 1));
+          }
+          break;
+        }
+        if (r < waits.length - 1) {
+          logger.warn('[PULSE] Hotel search click attempt ' + (r + 1) + ' did not navigate (wait ' + waits[r] + 'ms) — retrying after stronger dismiss');
+          await dismissAllOverlays(page);
+          // Extra aggressive: press Escape + click neutral area to close any lingering popups
+          await page.keyboard.press('Escape').catch(() => {});
+          await page.waitForTimeout(300);
+          await page.mouse.click(640, 50).catch(() => {});
+          await page.waitForTimeout(400 + r * 300);
+          searchClicked = await clickSearchHotels(page);
+          result.actions.push('Hotel search retried after URL no-change (attempt ' + (r + 2) + ')');
+        }
       }
     }
     result.actions.push(`Search clicked: ${searchClicked}`);

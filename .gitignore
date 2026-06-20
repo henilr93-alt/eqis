@@ -1,9 +1,22 @@
 # Credentials & secrets
 .env
+.env.bak
 .env.local
 .env.*.local
 *.key
 *.pem
+
+# OAuth tokens & live browser session (NEVER commit)
+state/gmail-oauth-client.json
+state/gmail-oauth-token.json
+.playwright-profile/
+
+# Claude Code local config
+.claude/
+
+# Auto-backup junk (FRAKA code-backups + *.bak-* snapshots)
+*.bak
+*.bak-*
 
 # Dependencies
 node_modules/

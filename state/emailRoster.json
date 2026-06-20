@@ -1,0 +1,48 @@
+{
+  "_meta": {
+    "description": "Daily-digest mailing roster. Each team gets ONE consolidated email at 9am IST per day, containing the reports listed in `reports`. Edit recipients via the dashboard Notifications tab.",
+    "sendTimeIST": "09:00",
+    "updatedAt": "2026-06-10T03:00:00.000Z"
+  },
+  "teams": [
+    {
+      "id": "tech",
+      "name": "Tech Team",
+      "enabled": true,
+      "emails": [
+        "alpesh.p@etrav.in",
+        "kavin.p@codemagen.com",
+        "frank@codemagen.com",
+        "director@etrav.in"
+      ],
+      "reports": [
+        "searchpulse_digest"
+      ],
+      "notes": "SearchPulse daily performance — sent at 9am IST every day covering the PREVIOUS day's data."
+    },
+    {
+      "id": "marketing",
+      "name": "Marketing Team",
+      "enabled": true,
+      "emails": [
+        "daniel.p@etrav.in"
+      ],
+      "reports": [
+        "ecd_promote_digest"
+      ],
+      "notes": "ECD 'good pricing' — top hotels where Eagle Crest direct rate beats the bedbank market. 3 hotels per destination per day, rotated to avoid repeats."
+    },
+    {
+      "id": "contracting",
+      "name": "Eagle Crest Contracting Team",
+      "enabled": true,
+      "emails": [
+        "sudhir.d@eaglecrestdmc.com"
+      ],
+      "reports": [
+        "ecd_renegotiate_digest"
+      ],
+      "notes": "ECD 'bad pricing' — top hotels where the bedbank market beats our direct rate. Talk to the hotelier. Manager: Sudhir."
+    }
+  ]
+}

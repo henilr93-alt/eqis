@@ -1,0 +1,132 @@
+{
+  "byDestination": {
+    "Indonesia": [
+      {
+        "hotel": "Jambuluwuk Oceano Gili Trawangan Resort",
+        "sentAt": "2026-06-12T13:46:18.913Z",
+        "date": "2026-06-12"
+      },
+      {
+        "hotel": "Hotel Vila Ombak",
+        "sentAt": "2026-06-12T13:46:18.913Z",
+        "date": "2026-06-12"
+      },
+      {
+        "hotel": "FRii Resort Gili Trawangan",
+        "sentAt": "2026-06-12T13:46:18.913Z",
+        "date": "2026-06-12"
+      },
+      {
+        "hotel": "Hotel Ombak Sunset",
+        "sentAt": "2026-06-12T14:32:10.107Z",
+        "date": "2026-06-12"
+      },
+      {
+        "hotel": "Ubud Green Resort Villas",
+        "sentAt": "2026-06-12T14:32:10.107Z",
+        "date": "2026-06-12"
+      },
+      {
+        "hotel": "Aston Sunset Beach Resort",
+        "sentAt": "2026-06-12T14:32:10.107Z",
+        "date": "2026-06-12"
+      },
+      {
+        "hotel": "Royal Regantris Villa Karang",
+        "sentAt": "2026-06-20T08:55:36.785Z",
+        "date": "2026-06-20"
+      },
+      {
+        "hotel": "Maua Nusa Penida",
+        "sentAt": "2026-06-20T08:55:36.785Z",
+        "date": "2026-06-20"
+      },
+      {
+        "hotel": "Wait Garden Cottage",
+        "sentAt": "2026-06-20T08:55:36.785Z",
+        "date": "2026-06-20"
+      }
+    ],
+    "Thailand": [
+      {
+        "hotel": "Royal Cliff Beach Hotel",
+        "sentAt": "2026-06-12T13:46:18.923Z",
+        "date": "2026-06-12"
+      },
+      {
+        "hotel": "Amethyst Hotel Pattaya",
+        "sentAt": "2026-06-12T13:46:18.923Z",
+        "date": "2026-06-12"
+      },
+      {
+        "hotel": "Holiday Ao Nang Beach Resort",
+        "sentAt": "2026-06-12T13:46:18.923Z",
+        "date": "2026-06-12"
+      },
+      {
+        "hotel": "The Beverly Hotel",
+        "sentAt": "2026-06-19T11:35:00.426Z",
+        "date": "2026-06-19"
+      },
+      {
+        "hotel": "Nh Boat Lagoon Phuket Resort",
+        "sentAt": "2026-06-19T11:35:00.426Z",
+        "date": "2026-06-19"
+      },
+      {
+        "hotel": "Aonang Villa Resort",
+        "sentAt": "2026-06-19T11:35:00.426Z",
+        "date": "2026-06-19"
+      }
+    ],
+    "Vietnam": [
+      {
+        "hotel": "Best Western Premier Sonasea Phu Quoc",
+        "sentAt": "2026-06-12T13:46:18.925Z",
+        "date": "2026-06-12"
+      },
+      {
+        "hotel": "Solar Premium Hotel & Spa",
+        "sentAt": "2026-06-12T13:46:18.925Z",
+        "date": "2026-06-12"
+      },
+      {
+        "hotel": "CICILIA Saigon Center",
+        "sentAt": "2026-06-12T13:46:18.925Z",
+        "date": "2026-06-12"
+      }
+    ]
+  },
+  "destinationLog": [
+    {
+      "destination": "Indonesia",
+      "sentAt": "2026-06-12T13:46:18.913Z",
+      "date": "2026-06-12"
+    },
+    {
+      "destination": "Thailand",
+      "sentAt": "2026-06-12T13:46:18.923Z",
+      "date": "2026-06-12"
+    },
+    {
+      "destination": "Vietnam",
+      "sentAt": "2026-06-12T13:46:18.925Z",
+      "date": "2026-06-12"
+    },
+    {
+      "destination": "Indonesia",
+      "sentAt": "2026-06-12T14:32:10.107Z",
+      "date": "2026-06-12"
+    },
+    {
+      "destination": "Thailand",
+      "sentAt": "2026-06-19T11:35:00.427Z",
+      "date": "2026-06-19"
+    },
+    {
+      "destination": "Indonesia",
+      "sentAt": "2026-06-20T08:55:36.786Z",
+      "date": "2026-06-20"
+    }
+  ]
+}

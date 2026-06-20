@@ -1,6 +1,4 @@
-// This file is auto-generated daily by the Zipy Engine. Do not edit manually.
-// Dynamic scenarios are created from real user trends observed in Zipy sessions.
-// They are written to state/trendCache.json and loaded by scenarioPicker.js.
+// (Zipy engine retired 2026-05-28 — no dynamic scenarios generated.)
 
 const dynamicScenarios = [];
 

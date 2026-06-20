@@ -34,10 +34,6 @@ function metricsApi(req, res) {
       topRoutesBar: buildTopRoutes(filtered),
       overallHealthDonut: buildOverallHealthDonut(filtered),
       tokenUsageTimeline: buildTokenUsageTimeline(filtered),
-      zipyTopBugsBar: buildZipyTopBugs(filtered),
-      zipyCompletionRate: buildZipyCompletionRate(filtered),
-      zipyDiagnostics: buildZipyDiagnostics(filtered),
-      zipySummary: buildZipySummary(filtered),
       searchPulseCriticalAlerts: buildSearchPulseCriticalAlerts(filtered),
       searchPulsePerformance: buildSearchPulsePerformance(filtered),
       meta: {
@@ -128,7 +124,6 @@ function buildScenarioTypePie(entries) {
   const counts = { domestic: 0, international: 0, roundtrip: 0, mirror: 0, dynamic: 0 };
   for (const e of journeyEntries) {
     if (e.scenarioSource === 'session_mirror') counts.mirror++;
-    else if (e.scenarioSource === 'zipy_trend') counts.dynamic++;
     else if (e.flightType === 'domestic') counts.domestic++;
     else if (e.flightType === 'international') counts.international++;
     if (e.tripType === 'round-trip' || e.tripType === 'open-jaw') counts.roundtrip++;
@@ -206,115 +201,8 @@ function buildTokenUsageTimeline(entries) {
   };
 }
 
-function buildZipyTopBugs(entries) {
-  const zipyEntries = entries.filter(e => e.engineType === 'zipy' && e.topBugs);
-  if (zipyEntries.length === 0) return null;
-  const latest = zipyEntries[zipyEntries.length - 1];
-  return {
-    labels: (latest.topBugs || []).map(b => (b.title || '').slice(0, 40) + '...'),
-    datasets: [{
-      label: 'Occurrences',
-      data: (latest.topBugs || []).map(b => b.occurrences),
-      backgroundColor: (latest.topBugs || []).map(b =>
-        b.severity === 'P0' ? '#FF3B30' :
-        b.severity === 'P1' ? '#FF9500' :
-        b.severity === 'P2' ? '#FFCC00' : '#34AADC'
-      ),
-      borderRadius: 4,
-    }],
-  };
-}
 
-function buildZipyCompletionRate(entries) {
-  const zipyEntries = entries.filter(e => e.engineType === 'zipy' && e.completionRate !== undefined);
-  return {
-    labels: zipyEntries.map(e => e.timestamp?.slice(0, 10)),
-    datasets: [{
-      label: 'Session Completion Rate %',
-      data: zipyEntries.map(e => e.completionRate),
-      borderColor: '#FF2D55',
-      backgroundColor: 'rgba(255,45,85,0.1)',
-      tension: 0.3,
-    }],
-  };
-}
 
-// New function to extract latest diagnostic data from zipy metrics
-function buildZipyDiagnostics(entries) {
-  const zipyEntries = entries.filter(e => e.engineType === 'zipy');
-  if (zipyEntries.length === 0) return null;
-  
-  // Get the most recent zipy entry with diagnostic data
-  const latest = zipyEntries
-    .filter(e => e.diagnosticStatus || e.diagnosticData)
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-  
-  if (!latest) return null;
-  
-  const diagnostics = {
-    timestamp: latest.timestamp,
-    status: latest.diagnosticStatus || 'UNKNOWN',
-    currentUrl: null,
-    domStats: null,
-    harvestError: null,
-    loginStatus: null,
-    blockers: []
-  };
-  
-  // Extract diagnostic data fields if available
-  if (latest.diagnosticData) {
-    diagnostics.currentUrl = latest.diagnosticData.currentUrl || null;
-    diagnostics.domStats = latest.diagnosticData.domStats || null;
-    diagnostics.harvestError = latest.diagnosticData.harvestError || null;
-    diagnostics.loginStatus = latest.diagnosticData.loginStatus || null;
-  }
-  
-  // Build blockers list based on diagnostic status and errors
-  if (diagnostics.status === 'ERROR' || diagnostics.status === 'FAILED') {
-    diagnostics.blockers.push({
-      type: 'DIAGNOSTIC_FAILURE',
-      severity: 'P1',
-      message: `Zipy diagnostic status: ${diagnostics.status}`
-    });
-  }
-  
-  if (diagnostics.harvestError) {
-    diagnostics.blockers.push({
-      type: 'HARVEST_ERROR',
-      severity: 'P0',
-      message: `Session harvest failed: ${diagnostics.harvestError}`
-    });
-  }
-  
-  if (diagnostics.loginStatus === 'FAILED') {
-    diagnostics.blockers.push({
-      type: 'LOGIN_FAILURE',
-      severity: 'P0',
-      message: 'Zipy login authentication failed'
-    });
-  }
-  
-  // Check DOM health if stats available
-  if (diagnostics.domStats) {
-    const { totalElements, errorElements, loadTime } = diagnostics.domStats;
-    if (errorElements && errorElements > 0) {
-      diagnostics.blockers.push({
-        type: 'DOM_ERRORS',
-        severity: 'P2',
-        message: `${errorElements} DOM errors detected out of ${totalElements} elements`
-      });
-    }
-    if (loadTime && loadTime > 10000) {
-      diagnostics.blockers.push({
-        type: 'SLOW_LOAD',
-        severity: 'P1',
-        message: `Slow page load detected: ${loadTime}ms`
-      });
-    }
-  }
-  
-  return diagnostics;
-}
 
 function groupByDay(entries) {
   const byDay = {};
@@ -342,20 +230,6 @@ function healthToScore(health) {
 }
 
 
-function buildZipySummary(entries) {
-  const zipyEntries = entries.filter(e => e.engineType === 'zipy');
-  if (zipyEntries.length === 0) return null;
-  // Use IST date (not UTC) for "today" filter since system operates in India timezone
-  const istDate = new Date().toLocaleString('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).slice(0, 10);
-  const today = zipyEntries.filter(e => e.timestamp?.startsWith(istDate));
-  const totalHarvested = today.reduce((sum, e) => sum + (e.sessionsHarvested || 0), 0);
-  const totalAnalyzed = today.reduce((sum, e) => sum + (e.sessionsAnalyzed || 0), 0);
-  const totalBugs = today.reduce((sum, e) => sum + (e.uniqueBugsFound || 0), 0);
-  const totalMirrors = today.reduce((sum, e) => sum + (e.mirrorScenariosGenerated || 0), 0);
-  const latest = zipyEntries[zipyEntries.length - 1];
-  const completionRate = latest.completionRate || 0;
-  return { sessionsToday: totalHarvested, analyzedToday: totalAnalyzed, bugsToday: totalBugs, mirrorsActive: totalMirrors, completionRate, runsToday: today.length };
-}
 
 function buildSearchPulseCriticalAlerts(entries) {
   const pulseEntries = entries.filter(e => e.engineType === 'searchpulse');
@@ -405,17 +279,35 @@ function buildSearchPulsePerformance(entries) {
   for (const e of pulseEntries) {
     for (const s of (e.flightSearches || [])) {
       const key = (s.type === 'international') ? 'flightIntl' : 'flightDom';
-      allSearches[key].push({ results: s.results || 0, loadTimeMs: s.loadTimeMs || 0, status: s.status });
+      allSearches[key].push({ results: s.results || 0, loadTimeMs: s.loadTimeMs || 0, status: s.status, rating: s.rating });
     }
     for (const s of (e.hotelSearches || [])) {
       const key = (s.type === 'international') ? 'hotelIntl' : 'hotelDom';
-      allSearches[key].push({ results: s.results || 0, loadTimeMs: s.loadTimeMs || 0, status: s.status });
+      allSearches[key].push({ results: s.results || 0, loadTimeMs: s.loadTimeMs || 0, status: s.status, rating: s.rating });
     }
   }
 
   function calcStats(searches, mode) {
     // mode: 'flightDom', 'flightIntl', 'hotelDom', 'hotelIntl', or 'all'
-    if (searches.length === 0) return { total: 0, delayed: 0, delayPct: 0, failed: 0, failPct: 0, success: 0, successPct: 0, onTime: 0, onTimePct: 0, ratings: { perfect: 0, median: 0, delay: 0, critical: 0, failure: 0 } };
+    //
+    // RULE (CEO 2026-05-30): SPF searches are EXCLUDED from every metric the
+    // Performance tab shows for all 4 SearchPulse engines. SPF means the
+    // automation failed to submit a real search — it is not an Etrav data
+    // point, so counting it against engine performance is misleading. We
+    // detect SPF via the engine's stored rating field (preserved through the
+    // reduction above); if that field is missing, fall back to a status-based
+    // check that matches computeSearchRating() in searchPulseEngine.js.
+    const isSpf = (s) => {
+      if (s.rating === 'SPF') return true;
+      // Fallback for legacy entries without rating: AUTOMATION_* + zero-duration FAILED
+      const st = s.status || '';
+      if (st === 'AUTOMATION_DATE_INCOMPLETE' || st === 'AUTOMATION_FIELD_INCOMPLETE' || st === 'AUTOMATION_FORM_RESET') return true;
+      if (st === 'FAILED' && (s.loadTimeMs || 0) === 0 && (s.results || 0) === 0) return true;
+      return false;
+    };
+    const spfExcluded = searches.filter(isSpf).length;
+    searches = searches.filter(s => !isSpf(s));
+    if (searches.length === 0) return { total: 0, delayed: 0, delayPct: 0, failed: 0, failPct: 0, success: 0, successPct: 0, onTime: 0, onTimePct: 0, spfExcluded, ratings: { perfect: 0, median: 0, delay: 0, critical: 0, failure: 0 } };
     const total = searches.length;
     const delayed = searches.filter(s => s.loadTimeMs > 20000).length;
     const failed = searches.filter(s => (s.results || 0) === 0).length;
@@ -463,6 +355,7 @@ function buildSearchPulsePerformance(entries) {
       failed, failPct: Math.round((failed / total) * 100),
       success, successPct: Math.round((success / total) * 100),
       onTime, onTimePct: Math.round((onTime / total) * 100),
+      spfExcluded, // CEO 2026-05-30: SPF count surfaced separately, not counted in `total`
       ratings,
     };
   }

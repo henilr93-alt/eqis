@@ -24,7 +24,11 @@ function pickDateOffset() {
 function pickTripType() {
   const isRoundTrip = Math.random() < 0.5;
   if (!isRoundTrip) return { tripType: 'one-way', returnOffset: 0 };
-  const returnOffset = Math.floor(Math.random() * 27) + 4; // 4-30 days after departure
+  // CEO HARD RULE 2026-06-19: round-trip return date must NEVER equal the onward
+  // date. returnOffset is days added AFTER departure, so it must be >= 1. The
+  // realistic window is 4-30 days; Math.max(1, ...) guarantees the no-same-date
+  // invariant even if the window is ever changed.
+  const returnOffset = Math.max(1, Math.floor(Math.random() * 27) + 4); // 4-30 days after departure
   return { tripType: 'round-trip', returnOffset };
 }
 
@@ -146,6 +150,27 @@ function pickFlightPax() {
 }
 
 /**
+ * CEO HARD RULE 2026-06-19: Premium Economy & Business class searches must carry
+ * at most 5 total passengers per search (adults + children + infants <= 5).
+ * Trims excess pax in order infants -> children -> adults, never below 1 adult,
+ * and re-applies the infant rule (max 1 per adult, cap 2). Pure function — only
+ * called when the resolved cabin class is Premium Economy or Business.
+ */
+function capFlightPaxForPremiumCabin(pax, maxTotal = 5) {
+  let adults = pax.adults || 1;
+  let children = pax.children || 0;
+  let infants = pax.infants || 0;
+  while (adults + children + infants > maxTotal) {
+    if (infants > 0) infants--;
+    else if (children > 0) children--;
+    else if (adults > 1) adults--;
+    else break;
+  }
+  infants = Math.min(infants, adults, 2);
+  return { adults, children, infants };
+}
+
+/**
  * Metro cities in India (for business class domestic rule)
  */
 const METRO_CITIES = ['DEL', 'BOM', 'BLR', 'MAA', 'CCU', 'HYD', 'AMD', 'PNQ', 'GOI', 'COK'];
@@ -251,11 +276,22 @@ function pickPulseScenarios(trendData) {
     || FLIGHT_SCENARIOS.find(s => s.type === 'domestic');
   if (domFlight) { flightSearches.push(domFlight); usedRoutes.add(domFlight.from + '-' + domFlight.to); }
 
-  // Pick 1 random international flight from L2B routes (real agent traffic)
+  // Pick 1 international flight — biased 75% toward CEO priority sectors (2026-06-02)
+  const { INTL_PRIORITY_SECTORS, INTL_PRIORITY_PICK_RATE } = require('../scenarios/internationalScenarios');
+  const priorityIntl = INTL_PRIORITY_SECTORS
+    .filter(s => !wasRecentlyUsed(s.id, pulseHistory) && !usedRoutes.has(s.from + '-' + s.to))
+    .sort(() => Math.random() - 0.5);
   const shuffledIntlL2B = l2bIntlFlights.filter(s => !usedRoutes.has(s.from + '-' + s.to)).sort(() => Math.random() - 0.5);
-  const intlFlight = shuffledIntlL2B[0]
-    || allIntlFlights.find(s => !usedRoutes.has(s.from + '-' + s.to))
-    || FLIGHT_SCENARIOS.find(s => s.type === 'international');
+  let intlFlight = null;
+  if (priorityIntl.length > 0 && Math.random() < INTL_PRIORITY_PICK_RATE) {
+    intlFlight = priorityIntl[0];
+  }
+  if (!intlFlight) {
+    intlFlight = shuffledIntlL2B[0]
+      || priorityIntl[0]
+      || allIntlFlights.find(s => !usedRoutes.has(s.from + '-' + s.to))
+      || FLIGHT_SCENARIOS.find(s => s.type === 'international');
+  }
   if (intlFlight) { flightSearches.push(intlFlight); usedRoutes.add(intlFlight.from + '-' + intlFlight.to); }
 
   // ── HOTEL SELECTION ─────────────────────────────────────────
@@ -301,6 +337,27 @@ function pickPulseScenarios(trendData) {
   let pulseHist = {};
   try { pulseHist = JSON.parse(fs.readFileSync(PULSE_HISTORY_PATH, 'utf-8')); } catch {}
   let rtCount = pulseHist.roundTripCount || 0;
+  // CEO HARD RULE 2026-06-01: Flight INTL cabin class — out of every 10
+  // searches: 8 Economy + 1 Premium Economy + 1 Business (deterministic).
+  let intlCabinCount = pulseHist.flightIntlCabinCounter || 0;
+  const pickIntlCabinByRule = (n) => {
+    const slot = n % 10;
+    if (slot === 8) return 'Premium Economy';
+    if (slot === 9) return 'Business';
+    return 'Economy';
+  };
+  // 2026-06-15: Per-airport cabin restriction — Sharjah (SHJ) is served only
+  // by Y-cabin low-cost carriers (no Premium Economy or Business inventory on
+  // Etrav). For any route with SHJ as origin or destination, force Economy
+  // and DO NOT advance the cabin counter, so the next PE/B slot falls to the
+  // next eligible route and the 8/1/1 distribution is preserved across
+  // non-restricted sectors.
+  const ECONOMY_ONLY_AIRPORTS = new Set(['SHJ']);
+  const _isEconomyOnlyRoute = (from, to) => {
+    const f = String(from || '').toUpperCase();
+    const t = String(to   || '').toUpperCase();
+    return ECONOMY_ONLY_AIRPORTS.has(f) || ECONOMY_ONLY_AIRPORTS.has(t);
+  };
 
   const clonedFlights = flightSearches.map(s => {
     const c = { ...s };
@@ -309,9 +366,36 @@ function pickPulseScenarios(trendData) {
     const trip = pickTripType();
     c.tripType = trip.tripType;
     c.returnOffset = trip.returnOffset;
+    // CEO HARD RULE 2026-06-19: enforce return != onward date for any round-trip.
+    // returnOffset is days AFTER departure, so it must be >= 1 (0 would mean the
+    // return date equals the onward date). Clamp defensively here too.
+    if (c.tripType === 'round-trip' && (!Number.isFinite(c.returnOffset) || c.returnOffset < 1)) {
+      c.returnOffset = 1;
+    }
     const pax = pickFlightPax();
     c.passengers = pax;
-    c.cabinClass = pickCabinClass(c.type || 'domestic', c.from || '', c.to || '');
+    // Cabin class: domestic keeps existing rule; international follows the 8/1/1 hard rule above.
+    if (c.type === 'international') {
+      if (_isEconomyOnlyRoute(c.from, c.to)) {
+        c.cabinClass = 'Economy';
+        c.cabinRestrictedRoute = true;
+        // Do NOT advance intlCabinCount — preserve 8/1/1 across non-restricted routes.
+      } else {
+        c.cabinClass = pickIntlCabinByRule(intlCabinCount);
+        c.intlCabinCounter = intlCabinCount;
+        intlCabinCount++;
+      }
+    } else {
+      c.cabinClass = pickCabinClass(c.type || 'domestic', c.from || '', c.to || '');
+    }
+
+    // CEO HARD RULE 2026-06-19: Premium Economy & Business searches cap at 5 pax.
+    // Applied after the cabin class is resolved (covers domestic Business and
+    // international Premium Economy/Business), so the 8/1/1 INTL distribution and
+    // all other pax rules stay intact for Economy searches.
+    if (c.cabinClass === 'Premium Economy' || c.cabinClass === 'Business') {
+      c.passengers = capFlightPaxForPremiumCabin(c.passengers, 5);
+    }
 
     // For round-trip: assign target ticker state from sequential counter
     // Even count = checked (default), odd = unchecked
@@ -323,8 +407,9 @@ function pickPulseScenarios(trendData) {
     return c;
   });
 
-  // Persist updated counter back to pulseHistory
+  // Persist updated counters back to pulseHistory
   pulseHist.roundTripCount = rtCount;
+  pulseHist.flightIntlCabinCounter = intlCabinCount;
   try { fs.writeFileSync(PULSE_HISTORY_PATH, JSON.stringify(pulseHist, null, 2)); } catch {}
   const clonedHotels = hotelSearches.map(s => {
     const c = { ...s };

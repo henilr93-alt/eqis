@@ -62,8 +62,11 @@ function startDashboard() {
   // Static files
   app.use('/ui', express.static(path.join(__dirname, 'ui')));
 
-  // Serve index
+  // Serve index with no-cache so the user always gets the latest dashboard
   app.get('/', (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     res.sendFile(path.join(__dirname, 'ui', 'index.html'));
   });
 
@@ -74,6 +77,8 @@ function startDashboard() {
   app.get('/api/download/:type/:filename', downloadApi);
   app.get('/api/download/:type/:a/:b/:c', downloadApi);  // nested paths for screenshots (type/pulseId/screenshots/file.png)
   app.get('/api/live', liveApi);
+  const { liveTodayByEngineApi } = require('./api/liveTodayApi');
+  app.get('/api/live/today-by-engine', liveTodayByEngineApi);
   app.get('/api/cost', costApi);
 
   // Per-search individual report
@@ -157,6 +162,69 @@ function startDashboard() {
   app.patch('/api/fraka/directives/:id', frakaDirectivesUpdateApi);
   app.delete('/api/fraka/directives/:id', frakaDirectivesDeleteApi);
   app.get('/api/fraka/performance', frakaPerformanceApi);
+
+  // ECD comparison engine (engine5-ecd + engine6-mirror + ecd-comparator)
+  const {
+    ecdStatusApi, ecdLatestApi, ecdHistoryApi, ecdDestinationsApi, ecdRunNowApi, ecdActivityApi, ecdProgressApi, ecdNotesListApi, ecdNotesGetApi, ecdNotesSaveApi, ecdExportCsvApi, ecdCeoMetricsApi, ecdPortfolioApi,
+  } = require('./api/ecdApi');
+  app.get('/api/ecd/status', ecdStatusApi);
+  app.get('/api/ecd/activity', ecdActivityApi);
+  app.get('/api/ecd/progress', ecdProgressApi);
+  app.get('/api/ecd/notes', ecdNotesListApi);
+  app.get('/api/ecd/notes/:hotel', ecdNotesGetApi);
+  app.post('/api/ecd/notes/:hotel', ecdNotesSaveApi);
+  app.get('/api/ecd/export.csv', ecdExportCsvApi);
+  app.get('/api/ecd/ceo-metrics', ecdCeoMetricsApi);
+  app.get('/api/ecd/portfolio', ecdPortfolioApi);
+  app.get('/api/ecd/latest', ecdLatestApi);
+  app.get('/api/ecd/history', ecdHistoryApi);
+  app.get('/api/ecd/destinations', ecdDestinationsApi);
+  app.post('/api/ecd/run-now', ecdRunNowApi);
+
+  // SearchPulse activity bars (History tab live status — one per sub-engine)
+  const { searchPulseActivityApi } = require('./api/searchpulseActivityApi');
+  app.get('/api/searchpulse/activity', searchPulseActivityApi);
+
+  // Review tab — Flight INTL Review Pulse (engine 8). Placed between
+  // History and Supplier Health per CEO request 2026-06-13.
+  const reviewApi = require('./api/reviewApi');
+  app.get('/api/review/status',                 reviewApi.reviewStatusApi);
+  app.get('/api/review/today',                  reviewApi.reviewTodayApi);
+  app.get('/api/review/history',                reviewApi.reviewHistoryApi);
+  app.get('/api/review/failures',               reviewApi.reviewFailuresApi);
+  app.get('/api/review/rotation',               reviewApi.reviewRotationApi);
+  app.get('/api/review/asset/:kind/:runId',     reviewApi.reviewAssetApi);
+  app.get('/api/review/detail/:runId',          reviewApi.reviewDetailApi);
+
+  // Flight INTL Audit tab — Engine 9 (merged search + book + review on ONE page).
+  // ADDITIVE: runs alongside the legacy Review tab until the merged engine is
+  // verified (user constraint 2026-06-18 — keep both engines until proven).
+  const fiaApi = require('./api/flightIntlAuditApi');
+  app.get('/api/flight-intl-audit/status',            fiaApi.flightIntlAuditStatusApi);
+  app.get('/api/flight-intl-audit/today',             fiaApi.flightIntlAuditTodayApi);
+  app.get('/api/flight-intl-audit/history',           fiaApi.flightIntlAuditHistoryApi);
+  app.get('/api/flight-intl-audit/failures',          fiaApi.flightIntlAuditFailuresApi);
+  app.get('/api/flight-intl-audit/asset/:kind/:runId', fiaApi.flightIntlAuditAssetApi);
+  app.get('/api/flight-intl-audit/detail/:runId',     fiaApi.flightIntlAuditDetailApi);
+  app.get('/api/flight-intl-audit/verifications',     fiaApi.flightIntlAuditVerificationsApi);
+  app.get('/api/flight-intl-audit/escalation-summary', fiaApi.flightIntlAuditEscalationSummaryApi);
+
+  // Supplier Health tab — Flight INTL airline filter trends
+  const { supplierHealthMatrixApi, supplierHealthSectorApi, supplierHealthScreenshotApi } = require('./api/supplierHealthApi');
+  app.get('/api/supplier-health/matrix', supplierHealthMatrixApi);
+  app.get('/api/supplier-health/sector', supplierHealthSectorApi);
+  app.get('/api/supplier-health/screenshot', supplierHealthScreenshotApi);
+  // Competitor (engine 7) routes removed 2026-06-14 per user request
+
+  // Notifications tab — daily-digest email roster + send history + manual triggers
+  const emailApi = require('./api/emailApi');
+  app.get('/api/email/status',     emailApi.statusApi);
+  app.get('/api/email/roster',     emailApi.getRosterApi);
+  app.post('/api/email/roster',    emailApi.postRosterApi);
+  app.get('/api/email/history',    emailApi.historyApi);
+  app.get('/api/email/schedule',   emailApi.scheduleApi);
+  app.post('/api/email/send-test', emailApi.sendTestApi);
+  app.post('/api/email/run-now',   emailApi.runNowApi);
 
   // Bind to 0.0.0.0 so platforms like Railway/Render can route external traffic.
   // Falls back to localhost only if explicitly requested via DASHBOARD_HOST=localhost.

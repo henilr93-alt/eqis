@@ -63,7 +63,7 @@ module.exports = {
   CLAUDE_MODEL: process.env.CLAUDE_MODEL,
   // FRAKA sub-CTO agent models
   FRAKA_CHAT_MODEL: process.env.FRAKA_CHAT_MODEL || 'claude-haiku-4-5',
-  FRAKA_ANALYSIS_MODEL: process.env.FRAKA_ANALYSIS_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514',
+  FRAKA_ANALYSIS_MODEL: process.env.FRAKA_ANALYSIS_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
 
   // System
   JOURNEY_RUN_INTERVAL_MINUTES: parseInt(process.env.JOURNEY_RUN_INTERVAL_MINUTES || '30', 10),
@@ -74,7 +74,7 @@ module.exports = {
 
   // Dashboard
   DASHBOARD_PORT: parseInt(process.env.DASHBOARD_PORT || '4000', 10),
-  DASHBOARD_PASSWORD: null, // Password disabled — set via .env DASHBOARD_PASSWORD to re-enable
+  DASHBOARD_PASSWORD: process.env.DASHBOARD_PASSWORD || null, // Set DASHBOARD_PASSWORD in .env to require a password
   DASHBOARD_ENABLED: process.env.DASHBOARD_ENABLED || 'false',
 
   // Full Booking Engine (Engine 4)
@@ -86,6 +86,26 @@ module.exports = {
 
   // CMT Escalation (auto-report issues to Etrav tech team — runs headless)
   CMT_ESCALATION_ENABLED: process.env.CMT_ESCALATION_ENABLED || 'true',
+
+  // Engine 9 (Flight INTL Audit) CMT escalation — gated OFF until verified live
+  FLIGHT_INTL_AUDIT_ESCALATION_ENABLED: process.env.FLIGHT_INTL_AUDIT_ESCALATION_ENABLED || 'false',
+
+  // Engine 9 (Flight INTL Audit) FRAKA video-vs-data verify — gated OFF until verified live.
+  // After each booked run, FRAKA compares the recording/screenshots against the recorded
+  // data and files a CEO-queue proposal (human-approved) if an EQIS flow break is proven.
+  FLIGHT_INTL_AUDIT_VERIFY_ENABLED: process.env.FLIGHT_INTL_AUDIT_VERIFY_ENABLED || 'false',
+
+  // ECD Comparison Engine (engine5-ecd + engine6-mirror + ecd-comparator)
+  // Compares Eagle Crest direct-contracted hotel pricing against normal hotel search.
+  // Enabled by default — runs every 5 minutes.
+  ECD_ENABLED: process.env.ECD_ENABLED || 'true',
+  ECD_RUN_INTERVAL_MINUTES: parseInt(process.env.ECD_RUN_INTERVAL_MINUTES || '5', 10),
+  ECD_DESTINATIONS_PER_RUN: parseInt(process.env.ECD_DESTINATIONS_PER_RUN || '5', 10),
+  ECD_TOP_COMBOS_PER_HOTEL: parseInt(process.env.ECD_TOP_COMBOS_PER_HOTEL || '3', 10),
+  ECD_EQUAL_THRESHOLD_PCT: parseFloat(process.env.ECD_EQUAL_THRESHOLD_PCT || '2'),
+  ECD_NORMAL_CHEAPER_P1_PCT: parseFloat(process.env.ECD_NORMAL_CHEAPER_P1_PCT || '10'),
+  ECD_CHECKIN_OFFSET_DAYS: parseInt(process.env.ECD_CHECKIN_OFFSET_DAYS || '10', 10),
+  ECD_DEFAULT_NIGHTS: parseInt(process.env.ECD_DEFAULT_NIGHTS || '3', 10),
 
   // Optional
   SLACK_WEBHOOK_URL: process.env.SLACK_WEBHOOK_URL || null,

@@ -1,0 +1,534 @@
+{
+  "runId": "ECD-20260620-2030",
+  "startedAt": "2026-06-20T15:00:00.538Z",
+  "finishedAt": null,
+  "totalExpected": 0,
+  "hotelComparisons": [
+    {
+      "destination": "Indonesia",
+      "hotelName": "Harper Kuta by Aston",
+      "starRating": 4,
+      "ecdHotelId": null,
+      "checkin": "2026-07-10",
+      "checkout": "2026-07-14",
+      "pax": {
+        "adults": 2,
+        "rooms": 1
+      },
+      "ecdStatus": "OK",
+      "mirrorStatus": "OK",
+      "mirrorAutosuggest": null,
+      "mirrorCardScore": 0,
+      "combos": [
+        {
+          "roomCategory": "Superior",
+          "mealPlan": "Breakfast Included",
+          "matchedNormalRoom": "Superior, Double or 1 Twin",
+          "matchedNormalMeal": "Breakfast Included",
+          "matchScore": 1,
+          "ecd": {
+            "totalPrice": 13720,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": 12842,
+            "currency": "INR",
+            "matched": true
+          },
+          "diff": {
+            "absINR": 878,
+            "pct": 6.84,
+            "cheaperSide": "NORMAL"
+          },
+          "verdict": "NORMAL_CHEAPER",
+          "severity": null
+        },
+        {
+          "roomCategory": "Superior Premier",
+          "mealPlan": "Breakfast Included",
+          "matchedNormalRoom": "Superior Premier",
+          "matchedNormalMeal": "Breakfast Included",
+          "matchScore": 1,
+          "ecd": {
+            "totalPrice": 14818,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": 14795,
+            "currency": "INR",
+            "matched": true
+          },
+          "diff": {
+            "absINR": 23,
+            "pct": 0.16,
+            "cheaperSide": "EQUAL"
+          },
+          "verdict": "EQUAL",
+          "severity": null
+        },
+        {
+          "roomCategory": "Deluxe",
+          "mealPlan": "Breakfast Included",
+          "matchedNormalRoom": "Deluxe, Double or 1 Twin",
+          "matchedNormalMeal": "Breakfast Included",
+          "matchScore": 1,
+          "ecd": {
+            "totalPrice": 17013,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": 18220,
+            "currency": "INR",
+            "matched": true
+          },
+          "diff": {
+            "absINR": -1207,
+            "pct": -6.62,
+            "cheaperSide": "ECD"
+          },
+          "verdict": "ECD_CHEAPER",
+          "severity": null
+        }
+      ],
+      "severity": null,
+      "topVerdict": "NORMAL_CHEAPER"
+    },
+    {
+      "destination": "Indonesia",
+      "city": "Nusa Penida",
+      "hotelName": "Wait Garden Cottage",
+      "starRating": 4,
+      "ecdHotelId": null,
+      "checkin": "2026-07-07",
+      "checkout": "2026-07-11",
+      "pax": {
+        "adults": 2,
+        "rooms": 1
+      },
+      "topVerdict": "PENDING_BEDBANK",
+      "severity": null,
+      "combos": [
+        {
+          "roomCategory": "Wait Garden Cottage (lowest)",
+          "mealPlan": "",
+          "ecd": {
+            "totalPrice": 8781,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": null,
+            "currency": "INR",
+            "matched": false
+          },
+          "diff": {
+            "absINR": null,
+            "pct": null,
+            "cheaperSide": null
+          },
+          "verdict": "PENDING_BEDBANK",
+          "severity": null
+        }
+      ],
+      "_pendingMirror": true
+    },
+    {
+      "destination": "Indonesia",
+      "city": "Nusa Penida",
+      "hotelName": "The Angkal Resort Nusa Penida Bali",
+      "starRating": 4,
+      "ecdHotelId": null,
+      "checkin": "2026-07-07",
+      "checkout": "2026-07-11",
+      "pax": {
+        "adults": 2,
+        "rooms": 1
+      },
+      "topVerdict": "PENDING_BEDBANK",
+      "severity": null,
+      "combos": [
+        {
+          "roomCategory": "The Angkal Resort Nusa Penida Bali (lowest)",
+          "mealPlan": "",
+          "ecd": {
+            "totalPrice": 21952,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": null,
+            "currency": "INR",
+            "matched": false
+          },
+          "diff": {
+            "absINR": null,
+            "pct": null,
+            "cheaperSide": null
+          },
+          "verdict": "PENDING_BEDBANK",
+          "severity": null
+        }
+      ],
+      "_pendingMirror": true
+    },
+    {
+      "destination": "Indonesia",
+      "city": "Nusa Penida",
+      "hotelName": "Sea La Vie Beach Resort",
+      "starRating": 4,
+      "ecdHotelId": null,
+      "checkin": "2026-07-07",
+      "checkout": "2026-07-11",
+      "pax": {
+        "adults": 2,
+        "rooms": 1
+      },
+      "topVerdict": "PENDING_BEDBANK",
+      "severity": null,
+      "combos": [
+        {
+          "roomCategory": "Sea La Vie Beach Resort (lowest)",
+          "mealPlan": "",
+          "ecd": {
+            "totalPrice": 30514,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": null,
+            "currency": "INR",
+            "matched": false
+          },
+          "diff": {
+            "absINR": null,
+            "pct": null,
+            "cheaperSide": null
+          },
+          "verdict": "PENDING_BEDBANK",
+          "severity": null
+        }
+      ],
+      "_pendingMirror": true
+    },
+    {
+      "destination": "Indonesia",
+      "hotelName": "The One Legian",
+      "starRating": 4,
+      "ecdHotelId": null,
+      "checkin": "2026-07-10",
+      "checkout": "2026-07-14",
+      "pax": {
+        "adults": 2,
+        "rooms": 1
+      },
+      "ecdStatus": "OK",
+      "mirrorStatus": "OK",
+      "mirrorAutosuggest": null,
+      "mirrorCardScore": 0,
+      "combos": [
+        {
+          "roomCategory": "Superior",
+          "mealPlan": "Breakfast Included",
+          "matchedNormalRoom": "Superior Vibe, 2 Twin",
+          "matchedNormalMeal": "Breakfast Included",
+          "matchScore": 1,
+          "ecd": {
+            "totalPrice": 13720,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": 12782,
+            "currency": "INR",
+            "matched": true
+          },
+          "diff": {
+            "absINR": 938,
+            "pct": 7.34,
+            "cheaperSide": "NORMAL"
+          },
+          "verdict": "NORMAL_CHEAPER",
+          "severity": null
+        },
+        {
+          "roomCategory": "Deluxe",
+          "mealPlan": "Breakfast Included",
+          "matchedNormalRoom": "Deluxe, Double or Twin",
+          "matchedNormalMeal": "Breakfast Included",
+          "matchScore": 1,
+          "ecd": {
+            "totalPrice": 15915,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": 16079,
+            "currency": "INR",
+            "matched": true
+          },
+          "diff": {
+            "absINR": -164,
+            "pct": -1.02,
+            "cheaperSide": "EQUAL"
+          },
+          "verdict": "EQUAL",
+          "severity": null
+        },
+        {
+          "roomCategory": "Deluxe Pool View",
+          "mealPlan": "Breakfast Included",
+          "matchedNormalRoom": "Deluxe, Double or Twin, View",
+          "matchedNormalMeal": "Breakfast Included",
+          "matchScore": 1,
+          "ecd": {
+            "totalPrice": 18111,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": 17489,
+            "currency": "INR",
+            "matched": true
+          },
+          "diff": {
+            "absINR": 622,
+            "pct": 3.56,
+            "cheaperSide": "NORMAL"
+          },
+          "verdict": "NORMAL_CHEAPER",
+          "severity": null
+        }
+      ],
+      "severity": null,
+      "topVerdict": "NORMAL_CHEAPER"
+    },
+    {
+      "destination": "Indonesia",
+      "city": "Nusa Penida",
+      "hotelName": "Semabu Hills Hotel Nusa Penida",
+      "starRating": 4,
+      "ecdHotelId": null,
+      "checkin": "2026-07-07",
+      "checkout": "2026-07-11",
+      "pax": {
+        "adults": 2,
+        "rooms": 1
+      },
+      "topVerdict": "PENDING_BEDBANK",
+      "severity": null,
+      "combos": [
+        {
+          "roomCategory": "Semabu Hills Hotel Nusa Penida (lowest)",
+          "mealPlan": "",
+          "ecd": {
+            "totalPrice": 33258,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": null,
+            "currency": "INR",
+            "matched": false
+          },
+          "diff": {
+            "absINR": null,
+            "pct": null,
+            "cheaperSide": null
+          },
+          "verdict": "PENDING_BEDBANK",
+          "severity": null
+        }
+      ],
+      "_pendingMirror": true
+    },
+    {
+      "destination": "Indonesia",
+      "city": "Nusa Penida",
+      "hotelName": "Maua Nusa Penida",
+      "starRating": 5,
+      "ecdHotelId": null,
+      "checkin": "2026-07-07",
+      "checkout": "2026-07-11",
+      "pax": {
+        "adults": 2,
+        "rooms": 1
+      },
+      "topVerdict": "PENDING_BEDBANK",
+      "severity": null,
+      "combos": [
+        {
+          "roomCategory": "Maua Nusa Penida (lowest)",
+          "mealPlan": "",
+          "ecd": {
+            "totalPrice": 67942,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": null,
+            "currency": "INR",
+            "matched": false
+          },
+          "diff": {
+            "absINR": null,
+            "pct": null,
+            "cheaperSide": null
+          },
+          "verdict": "PENDING_BEDBANK",
+          "severity": null
+        }
+      ],
+      "_pendingMirror": true
+    },
+    {
+      "destination": "Indonesia",
+      "hotelName": "Koa D Surfer Canggu",
+      "starRating": 3,
+      "ecdHotelId": null,
+      "checkin": "2026-07-10",
+      "checkout": "2026-07-14",
+      "pax": {
+        "adults": 2,
+        "rooms": 1
+      },
+      "ecdStatus": "OK",
+      "mirrorStatus": "OK",
+      "mirrorAutosuggest": null,
+      "mirrorCardScore": 0,
+      "combos": [
+        {
+          "roomCategory": "Superior",
+          "mealPlan": "Breakfast Included",
+          "matchedNormalRoom": "Superior, 2 Twin, Garden View",
+          "matchedNormalMeal": "Breakfast Included",
+          "matchScore": 1,
+          "ecd": {
+            "totalPrice": 13830,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": 14401,
+            "currency": "INR",
+            "matched": true
+          },
+          "diff": {
+            "absINR": -571,
+            "pct": -3.97,
+            "cheaperSide": "ECD"
+          },
+          "verdict": "ECD_CHEAPER",
+          "severity": null
+        }
+      ],
+      "severity": null,
+      "topVerdict": "ECD_CHEAPER"
+    },
+    {
+      "destination": "Indonesia",
+      "city": "Lombok",
+      "hotelName": "Royal Regantris Villa Karang",
+      "starRating": 3,
+      "ecdHotelId": null,
+      "checkin": "2026-07-07",
+      "checkout": "2026-07-11",
+      "pax": {
+        "adults": 2,
+        "rooms": 1
+      },
+      "topVerdict": "PENDING_BEDBANK",
+      "severity": null,
+      "combos": [
+        {
+          "roomCategory": "Royal Regantris Villa Karang (lowest)",
+          "mealPlan": "",
+          "ecd": {
+            "totalPrice": 27440,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": null,
+            "currency": "INR",
+            "matched": false
+          },
+          "diff": {
+            "absINR": null,
+            "pct": null,
+            "cheaperSide": null
+          },
+          "verdict": "PENDING_BEDBANK",
+          "severity": null
+        }
+      ],
+      "_pendingMirror": true
+    },
+    {
+      "destination": "Indonesia",
+      "hotelName": "Grand Ixora Kuta Resort",
+      "starRating": 4,
+      "ecdHotelId": null,
+      "checkin": "2026-07-10",
+      "checkout": "2026-07-14",
+      "pax": {
+        "adults": 2,
+        "rooms": 1
+      },
+      "ecdStatus": "OK",
+      "mirrorStatus": "OK",
+      "mirrorAutosuggest": null,
+      "mirrorCardScore": 0,
+      "combos": [
+        {
+          "roomCategory": "Superior",
+          "mealPlan": "Breakfast Included",
+          "matchedNormalRoom": "Superior, 2 Twin",
+          "matchedNormalMeal": "Breakfast Included",
+          "matchScore": 1,
+          "ecd": {
+            "totalPrice": 15367,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": 15013,
+            "currency": "INR",
+            "matched": true
+          },
+          "diff": {
+            "absINR": 354,
+            "pct": 2.36,
+            "cheaperSide": "NORMAL"
+          },
+          "verdict": "NORMAL_CHEAPER",
+          "severity": null
+        },
+        {
+          "roomCategory": "Deluxe",
+          "mealPlan": "Breakfast Included",
+          "ecd": {
+            "totalPrice": 18659,
+            "currency": "INR"
+          },
+          "normal": {
+            "totalPrice": null,
+            "currency": "INR",
+            "matched": false
+          },
+          "diff": {
+            "absINR": null,
+            "pct": null,
+            "cheaperSide": null
+          },
+          "verdict": "COMBO_UNMATCHED",
+          "severity": null
+        }
+      ],
+      "severity": null,
+      "topVerdict": "NORMAL_CHEAPER"
+    }
+  ],
+  "summary": {
+    "totalCombosCompared": 15,
+    "ecdCheaperCount": 2,
+    "ecdCheaperPct": 13.3,
+    "normalCheaperCount": 4,
+    "normalCheaperPct": 26.7,
+    "equalCount": 2,
+    "equalPct": 13.3,
+    "defaultStockoutCount": 0,
+    "unmatchedComboCount": 1,
+    "ecdBrokenCount": 0,
+    "avgEcdAdvantageINR": 889,
+    "hotelsProcessed": 10
+  }
+}

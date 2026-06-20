@@ -23,42 +23,52 @@ function getIntervalsApi(req, res) {
   }
 }
 
+function _validMin(v) {
+  const n = parseInt(v, 10);
+  return isFinite(n) && n >= 1 && n <= 1440 ? n : null;
+}
+
 function postIntervalsApi(req, res) {
   try {
-    const { searchPulseMinutes, journeyMinutes, fullBookingMinutes } = req.body || {};
+    const body = req.body || {};
     const updates = {};
 
-    if (searchPulseMinutes !== undefined && searchPulseMinutes !== null && searchPulseMinutes !== '') {
-      const n = parseInt(searchPulseMinutes, 10);
-      if (isNaN(n) || n < 1 || n > 1440) {
-        return res.status(400).json({ error: 'searchPulseMinutes must be between 1 and 1440' });
+    // New nested shape: { searchPulse: { flightDom, flightIntl, hotelDom, hotelIntl } }
+    if (body.searchPulse && typeof body.searchPulse === 'object') {
+      const sp = {};
+      for (const k of ['flightDom', 'flightIntl', 'hotelDom', 'hotelIntl']) {
+        if (body.searchPulse[k] !== undefined && body.searchPulse[k] !== null && body.searchPulse[k] !== '') {
+          const v = _validMin(body.searchPulse[k]);
+          if (v === null) return res.status(400).json({ error: 'searchPulse.' + k + ' must be between 1 and 1440' });
+          sp[k] = v;
+        }
       }
-      updates.searchPulseMinutes = n;
+      if (Object.keys(sp).length > 0) updates.searchPulse = sp;
     }
 
-    if (journeyMinutes !== undefined && journeyMinutes !== null && journeyMinutes !== '') {
-      const n = parseInt(journeyMinutes, 10);
-      if (isNaN(n) || n < 1 || n > 1440) {
-        return res.status(400).json({ error: 'journeyMinutes must be between 1 and 1440' });
-      }
-      updates.journeyMinutes = n;
+    // Legacy flat field: searchPulseMinutes applies to all 4 sub-engines
+    if (body.searchPulseMinutes !== undefined && body.searchPulseMinutes !== null && body.searchPulseMinutes !== '') {
+      const v = _validMin(body.searchPulseMinutes);
+      if (v === null) return res.status(400).json({ error: 'searchPulseMinutes must be between 1 and 1440' });
+      updates.searchPulseMinutes = v;
     }
 
-    if (fullBookingMinutes !== undefined && fullBookingMinutes !== null && fullBookingMinutes !== '') {
-      const n = parseInt(fullBookingMinutes, 10);
-      if (isNaN(n) || n < 1 || n > 1440) {
-        return res.status(400).json({ error: 'fullBookingMinutes must be between 1 and 1440' });
-      }
-      updates.fullBookingMinutes = n;
+    if (body.journeyMinutes !== undefined && body.journeyMinutes !== null && body.journeyMinutes !== '') {
+      const v = _validMin(body.journeyMinutes);
+      if (v === null) return res.status(400).json({ error: 'journeyMinutes must be between 1 and 1440' });
+      updates.journeyMinutes = v;
     }
 
-    const { zipyMinutes } = req.body || {};
-    if (zipyMinutes !== undefined && zipyMinutes !== null && zipyMinutes !== '') {
-      const n = parseInt(zipyMinutes, 10);
-      if (isNaN(n) || n < 1 || n > 1440) {
-        return res.status(400).json({ error: 'zipyMinutes must be between 1 and 1440' });
-      }
-      updates.zipyMinutes = n;
+    if (body.fullBookingMinutes !== undefined && body.fullBookingMinutes !== null && body.fullBookingMinutes !== '') {
+      const v = _validMin(body.fullBookingMinutes);
+      if (v === null) return res.status(400).json({ error: 'fullBookingMinutes must be between 1 and 1440' });
+      updates.fullBookingMinutes = v;
+    }
+
+    if (body.ecdMinutes !== undefined && body.ecdMinutes !== null && body.ecdMinutes !== '') {
+      const v = _validMin(body.ecdMinutes);
+      if (v === null) return res.status(400).json({ error: 'ecdMinutes must be between 1 and 1440' });
+      updates.ecdMinutes = v;
     }
 
     if (Object.keys(updates).length === 0) {
