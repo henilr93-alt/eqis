@@ -38,6 +38,7 @@ state/metricsHistory.json
 state/pulseHistory.json
 state/timingHistory.json
 state/cmtEscalations.json
+state/auditEscalations.json
 state/intervals.json
 
 # FRAKA state (conversations, build history, backups)
