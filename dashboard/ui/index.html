@@ -4018,6 +4018,26 @@ eqis/
 <script>
 const TOKEN_KEY = 'eqis_dashboard_token';
 let authToken = sessionStorage.getItem(TOKEN_KEY) || '';
+
+// GLOBAL AUTH SHIM 2026-06-21: the server-side password gate (DASHBOARD_PASSWORD)
+// protects every /api route except a small public skip-list. Many data fetches in
+// this file call fetch('/api/...') WITHOUT the token, so once the gate is enabled
+// they return 401 and history/data tabs render empty. Wrap fetch to auto-append the
+// saved token to every /api request that doesn't already carry one. fetchWithAuth
+// keeps working (its URLs already include token=, so this is a no-op for them).
+(function () {
+  var _origFetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    try {
+      if (typeof input === 'string' && authToken &&
+          input.indexOf('/api/') !== -1 && input.indexOf('token=') === -1) {
+        input += (input.indexOf('?') === -1 ? '?' : '&') + 'token=' + encodeURIComponent(authToken);
+      }
+    } catch (e) { /* never let the shim break a request */ }
+    return _origFetch(input, init);
+  };
+})();
+
 let currentMetricsDays = 7;
 let costDays = 30;
 let historyPage = 1;
