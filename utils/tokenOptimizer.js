@@ -7,7 +7,8 @@ const client = new Anthropic({ apiKey: settings.ANTHROPIC_API_KEY });
 
 // ── Token budgets per mode ────────────────────────────────────
 const MODES = {
-  FAST: { maxTokens: 200, model: settings.CLAUDE_MODEL },
+  // FAST = routine/healthy grading → cheap Haiku model to cut cost.
+  FAST: { maxTokens: 200, model: settings.SEARCH_EVAL_FAST_MODEL || settings.CLAUDE_MODEL },
   STANDARD: { maxTokens: 600, model: settings.CLAUDE_MODEL },
   DEEP: { maxTokens: 1200, model: settings.CLAUDE_MODEL },
 };

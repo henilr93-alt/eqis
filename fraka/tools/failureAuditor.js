@@ -21,16 +21,17 @@ const { callClaude } = require('../../utils/tokenOptimizer');
 const proposalsStore = require('../proposalsStore');
 const { runCoderBuild } = require('../coder');
 
-// AUTO-FIX dedupe: skip running the same fix more than once per cooldown.
-// Key = affectedFile + rootCauseCategory. Value = timestamp of last build attempt.
-// Prevents the auditor from triggering 30 identical builds in an hour while the
-// underlying bug remains unresolved.
-const AUTO_FIX_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
-const _recentAutoFixes = new Map();
+// AUTO-FIX dedupe / snooze: skip proposing the same fix more than once per cooldown.
+// Key = affectedFile + rootCauseCategory. Value = timestamp of last attempt.
+// Persisted to disk so a restart does NOT reset the cooldown and re-flood the same
+// recurring issue. Long cooldown (24h) because re-auditing/re-proposing an already
+// known issue every cycle is pure token waste.
+const AUTO_FIX_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const STATE_DIR = path.join(__dirname, '..', '..', 'state', 'fraka');
 const RULE_BOOK_PATH = path.join(STATE_DIR, 'ruleBook.json');
 const FINDINGS_PATH = path.join(STATE_DIR, 'auditFindings.json');
+const SNOOZE_PATH = path.join(STATE_DIR, 'auditSnooze.json');
 const METRICS_PATH = path.join(__dirname, '..', '..', 'state', 'metricsHistory.json');
 const TMP_FRAME_DIR = '/tmp/eqis-audit-frames';
 
@@ -41,6 +42,26 @@ const FAILURE_STATUSES = new Set([
   'AUTOSUGGEST_DOWN', 'API_ERROR', 'ZERO_RESULTS',
 ]);
 const FAILURE_RATINGS = new Set(['SPF', 'FAILURE!!!', 'CRITICAL']);
+
+// Etrav-side INFRASTRUCTURE failures (CEO directive #7). These are Etrav's own
+// backend/network problems — EQIS cannot fix them in code. They must NEVER be sent
+// to the expensive vision audit or queued for a fix build. We mark them as a
+// lightweight etrav-infra finding (no API call) so the dashboard still counts them
+// and they aren't re-considered every cycle.
+const ETRAV_INFRA_STATUSES = new Set(['HEALTH_CHECK_FAILED']);
+const ETRAV_INFRA_ERROR_PATTERNS = [
+  'SEARCH_HARD_TIMEOUT',
+  'ERR_NETWORK_CHANGED',
+  'page.goto: Timeout',
+  'loading bar stuck',
+  'autosuggest API not responding',
+];
+
+function isEtravInfraFailure(s) {
+  if (s && ETRAV_INFRA_STATUSES.has(s.status)) return true;
+  const blob = [s && s.failureReason, s && s.error, s && s.status].filter(Boolean).join(' ');
+  return ETRAV_INFRA_ERROR_PATTERNS.some(p => blob.includes(p));
+}
 
 // Hard caps to keep token cost predictable per run.
 const MAX_AUDITS_PER_RUN = 5;
@@ -82,6 +103,51 @@ function loadRuleBook() {
 }
 function loadFindings() {
   return safeRead(FINDINGS_PATH, { version: 1, findings: [], lastAuditAt: null, totalAudited: 0 });
+}
+
+// Persistent auto-fix snooze map: { "<affectedFile>::<bucket>": <lastAttemptMs> }.
+function loadSnooze() {
+  const s = safeRead(SNOOZE_PATH, {});
+  return (s && typeof s === 'object') ? s : {};
+}
+function isSnoozed(key) {
+  const last = loadSnooze()[key];
+  return last && (Date.now() - last) < AUTO_FIX_COOLDOWN_MS;
+}
+function markSnoozed(key) {
+  const s = loadSnooze();
+  s[key] = Date.now();
+  safeWrite(SNOOZE_PATH, s);
+}
+
+// Record an Etrav-infra failure as a lightweight finding (no Claude call) so it is
+// counted, surfaced, and not re-audited next cycle.
+function persistInfraFinding(search) {
+  const findings = loadFindings();
+  findings.findings.push({
+    searchId: search.searchId,
+    engine: search.kind + '-' + (search.type || 'unknown'),
+    label: search.label || '',
+    sector: search.sector || search.destination || '',
+    status: search.status,
+    rating: search.rating,
+    pulseTimestamp: search.pulseTimestamp,
+    side: 'etrav',
+    etravInfra: true,
+    confidence: 'high',
+    rootCause: 'Etrav infrastructure failure (' + (search.status || search.failureReason || 'infra') + ') — not an EQIS bug, no fix possible',
+    evidence: 'Filtered by Etrav-infra rule before vision audit (CEO directive #7).',
+    ruleBookEntry: '',
+    eqisFixSuggestion: '',
+    affectedFile: '',
+    framesAnalyzed: 0,
+    usedScreenshot: false,
+    auditedAt: new Date().toISOString(),
+  });
+  findings.lastAuditAt = new Date().toISOString();
+  findings.totalAudited = findings.findings.length;
+  findings.etravInfraSkipped = (findings.etravInfraSkipped || 0) + 1;
+  safeWrite(FINDINGS_PATH, findings);
 }
 
 /**
@@ -323,14 +389,25 @@ function persistFinding(search, verdict) {
     else if (/destination|origin|autosuggest/.test(rc)) causeBucket = 'autosuggest';
 
     const dedupeKey = (verdict.affectedFile || 'unknown') + '::' + causeBucket;
-    const lastFix = _recentAutoFixes.get(dedupeKey);
-    const now = Date.now();
-    if (lastFix && (now - lastFix) < AUTO_FIX_COOLDOWN_MS) {
-      const minsLeft = Math.ceil((AUTO_FIX_COOLDOWN_MS - (now - lastFix)) / 60000);
-      logger.info('[FRAKA-AUDIT] Auto-fix SKIPPED (cooldown ' + minsLeft + 'min remaining) for key=' + dedupeKey);
+
+    // SNOOZE: if this same issue was already handled within the cooldown window,
+    // do nothing — no duplicate proposal action, no rebuild. This is the main
+    // token saver: a known recurring issue is not re-processed every cycle.
+    if (isSnoozed(dedupeKey)) {
+      logger.info('[FRAKA-AUDIT] SNOOZED (already handled within ' + (AUTO_FIX_COOLDOWN_MS / 3600000) + 'h) for key=' + dedupeKey);
       return;
     }
-    _recentAutoFixes.set(dedupeKey, now);
+    markSnoozed(dedupeKey);
+
+    // AUTO-BUILD is OFF by default (FRAKA_AUTO_BUILD_ENABLED). The proposal above is
+    // left PENDING for human review instead of self-approving and triggering an
+    // expensive build loop (builds have a 0% success rate, so auto-building just
+    // burns tokens). Set FRAKA_AUTO_BUILD_ENABLED=true to restore autonomous builds.
+    if (String(settings.FRAKA_AUTO_BUILD_ENABLED).toLowerCase() !== 'true') {
+      logger.info('[FRAKA-AUDIT] Proposal filed for review (auto-build disabled) key=' + dedupeKey +
+        (proposal && proposal.id ? ' proposal=' + proposal.id : ''));
+      return;
+    }
 
     // Auto-approve the proposal so the audit trail shows FRAKA self-approved
     if (proposal && proposal.id) {
@@ -374,10 +451,22 @@ function persistFinding(search, verdict) {
  * Public entry — run one audit cycle. Audits up to MAX_AUDITS_PER_RUN unaudited failures.
  */
 async function runAuditCycle({ hoursBack = 6, maxAudits = MAX_AUDITS_PER_RUN } = {}) {
-  const failures = listUnauditedFailures(hoursBack);
+  const allFailures = listUnauditedFailures(hoursBack);
+
+  // CEO directive #7: Etrav-infra failures are NOT EQIS bugs. Record them as
+  // lightweight findings (no Claude call) and exclude them from the vision audit.
+  const infraFailures = allFailures.filter(isEtravInfraFailure);
+  for (const s of infraFailures) {
+    try { persistInfraFinding(s); } catch (err) { logger.warn('[FRAKA-AUDIT] infra finding write failed: ' + err.message); }
+  }
+  if (infraFailures.length) {
+    logger.info('[FRAKA-AUDIT] Skipped ' + infraFailures.length + ' Etrav-infra failure(s) (no vision audit, no fix build)');
+  }
+
+  const failures = allFailures.filter(s => !isEtravInfraFailure(s));
   if (failures.length === 0) {
-    logger.info('[FRAKA-AUDIT] No unaudited failures in last ' + hoursBack + 'h');
-    return { audited: 0, totalCandidates: 0, perSearch: [] };
+    logger.info('[FRAKA-AUDIT] No EQIS-side unaudited failures in last ' + hoursBack + 'h (infra skipped: ' + infraFailures.length + ')');
+    return { audited: 0, totalCandidates: 0, infraSkipped: infraFailures.length, perSearch: [] };
   }
 
   const batch = failures.slice(0, maxAudits);
@@ -398,6 +487,7 @@ async function runAuditCycle({ hoursBack = 6, maxAudits = MAX_AUDITS_PER_RUN } =
   return {
     audited: results.length,
     totalCandidates: failures.length,
+    infraSkipped: infraFailures.length,
     skipped: failures.length - results.length,
     perSearch: results,
   };

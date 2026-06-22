@@ -64,6 +64,14 @@ module.exports = {
   // FRAKA sub-CTO agent models
   FRAKA_CHAT_MODEL: process.env.FRAKA_CHAT_MODEL || 'claude-haiku-4-5',
   FRAKA_ANALYSIS_MODEL: process.env.FRAKA_ANALYSIS_MODEL || process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
+  // Routine search grading (FAST mode = healthy searches with results) runs on the
+  // cheap Haiku model to cut cost. Anything unusual still escalates to STANDARD/DEEP
+  // on the strong model. Set SEARCH_EVAL_FAST_MODEL to override.
+  SEARCH_EVAL_FAST_MODEL: process.env.SEARCH_EVAL_FAST_MODEL || 'claude-haiku-4-5',
+  // FRAKA auto-build (autonomous code fixes from failure audits). Default OFF:
+  // failure audits file a proposal for human review instead of triggering an
+  // expensive build loop (builds have a 0% success rate). Set to 'true' to re-enable.
+  FRAKA_AUTO_BUILD_ENABLED: process.env.FRAKA_AUTO_BUILD_ENABLED || 'false',
 
   // System
   JOURNEY_RUN_INTERVAL_MINUTES: parseInt(process.env.JOURNEY_RUN_INTERVAL_MINUTES || '30', 10),
