@@ -151,6 +151,8 @@ Commands:
   node eqis.js run-fullbooking    Run full booking test now (requires BOOKING_FLOW_ENABLED=true)
   node eqis.js run-ecd            Run ECD comparison cycle now (requires ECD_ENABLED=true)
   node eqis.js run-flightintlaudit  Run one merged Flight INTL Audit now (search + book/review)
+  node eqis.js flightintl-report [recipient] [windowHours]  Send the Flight INTL Audit summary email now
+  node eqis.js flightintl-daily [recipient]                Send the Flight INTL Audit 24h daily summary now
   node eqis.js trial-cmt          Trial run: discover CMT escalation form (headed browser)
   node eqis.js --help             Show this help message
 `);
@@ -291,6 +293,14 @@ async function startSystem() {
     logger.error('[EQIS] Daily digest scheduler failed to register: ' + err.message);
   }
 
+  // 3-hourly Flight INTL Audit (Engine 9) summary emailer — search/review
+  // failure report to the tech team. Additive; read-only over reports/.
+  try {
+    require('./utils/flightIntlAuditReporter').register();
+  } catch (err) {
+    logger.error('[EQIS] Flight INTL Audit reporter failed to register: ' + err.message);
+  }
+
   // CLAUDE.md daily updater — writes full project context every 24h at midnight IST
   try {
     const { updateClaudeMd } = require('./fraka/tools/claudeMdUpdater');
@@ -427,6 +437,21 @@ function stopSystem() {
       await runFlightIntlAuditEngine();
       process.exit(0);
       break;
+    case 'flightintl-report': {
+      ensureDirs();
+      const to = process.argv[3] || undefined;
+      const windowHours = process.argv[4] ? Number(process.argv[4]) : undefined;
+      await require('./utils/flightIntlAuditReporter').runOnce({ to, windowHours });
+      process.exit(0);
+      break;
+    }
+    case 'flightintl-daily': {
+      ensureDirs();
+      const to = process.argv[3] || undefined;
+      await require('./utils/flightIntlAuditReporter').runDailyOnce({ to });
+      process.exit(0);
+      break;
+    }
     case 'trial-cmt':
       ensureDirs();
       const { runCmtTrial } = require('./engine3-searchpulse/cmtTrialRun');
