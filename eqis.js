@@ -334,6 +334,32 @@ async function startSystem() {
     logger.error('[EQIS] FRAKA Failure Auditor failed to register: ' + err.message);
   }
 
+  // FRAKA Email Reply (Engine 9 Leg 1) — poll the eqis@etrav.in inbox for tech-team
+  // replies that ask for a run's details (FIA-… / Issue #N), then draft a reply with
+  // the summary + screenshots + video. Draft-only by default (auto-send OFF) — a human
+  // approves each outbound email in the Tech tab. Gated by FRAKA_EMAIL_REPLY_ENABLED.
+  try {
+    const emailResponder = require('./fraka/email/responder');
+    if (emailResponder.isEnabled()) {
+      cron.schedule('*/10 * * * *', async () => {
+        logger.info('[EMAIL-RESPONDER] Inbox poll triggered by cron');
+        try {
+          const result = await emailResponder.pollAndDraft({ maxResults: 20 });
+          logger.info('[EMAIL-RESPONDER] Cycle complete — scanned ' + result.scanned
+            + ', drafted ' + result.drafted + ', sent ' + result.sent + ', skipped ' + result.skipped);
+        } catch (err) {
+          logger.error('[EMAIL-RESPONDER] Inbox poll failed: ' + err.message);
+        }
+      }, { timezone: settings.TIMEZONE });
+      logger.info('[EQIS] FRAKA Email Reply registered: every 10 minutes (auto-send '
+        + (emailResponder.isAutoSend() ? 'ON' : 'OFF — draft only') + ')');
+    } else {
+      logger.info('[EQIS] FRAKA Email Reply disabled (FRAKA_EMAIL_REPLY_ENABLED!=true) — not scheduled.');
+    }
+  } catch (err) {
+    logger.error('[EQIS] FRAKA Email Reply failed to register: ' + err.message);
+  }
+
   // (dashboard already started at top of startSystem so healthchecks pass immediately)
 
   // No automatic boot runs — engines only run when the user

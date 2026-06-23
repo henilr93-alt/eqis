@@ -703,6 +703,60 @@ function frakaPerformanceApi(req, res) {
   }
 }
 
+// ── FRAKA Email Requests (Engine 9 Leg 1 — reply to tech-team emails) ──
+const emailResponder = require('../../fraka/email/responder');
+const emailRequestStore = require('../../fraka/email/requestStore');
+
+function frakaEmailRequestsApi(req, res) {
+  try {
+    const filter = {};
+    if (req.query.status) filter.status = req.query.status;
+    res.json({
+      enabled: emailResponder.isEnabled(),
+      autoSend: emailResponder.isAutoSend(),
+      requests: emailRequestStore.listRequests(filter),
+    });
+  } catch (err) {
+    logger.error('[FRAKA-API] email-requests list failed: ' + err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function frakaEmailPollApi(req, res) {
+  try {
+    const result = await emailResponder.pollAndDraft({});
+    res.json({ success: true, ...result });
+  } catch (err) {
+    logger.error('[FRAKA-API] email poll failed: ' + err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function frakaEmailSendApi(req, res) {
+  try {
+    const { id } = req.params;
+    const rec = await emailResponder.sendDraft(id);
+    if (!rec) return res.status(404).json({ error: 'Request not found' });
+    if (rec.status === 'failed') return res.status(500).json({ error: rec.error || 'send failed', request: rec });
+    res.json({ success: true, request: rec });
+  } catch (err) {
+    logger.error('[FRAKA-API] email send failed: ' + err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+function frakaEmailSkipApi(req, res) {
+  try {
+    const { id } = req.params;
+    const rec = emailResponder.skipDraft(id, (req.body || {}).reason);
+    if (!rec) return res.status(404).json({ error: 'Request not found' });
+    res.json({ success: true, request: rec });
+  } catch (err) {
+    logger.error('[FRAKA-API] email skip failed: ' + err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
 // ── CEO Directives ────────────────────────────────────────
 function frakaDirectivesListApi(req, res) {
   try {
@@ -789,4 +843,8 @@ module.exports = {
   frakaDirectivesUpdateApi,
   frakaDirectivesDeleteApi,
   frakaPerformanceApi,
+  frakaEmailRequestsApi,
+  frakaEmailPollApi,
+  frakaEmailSendApi,
+  frakaEmailSkipApi,
 };

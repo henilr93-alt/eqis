@@ -31,7 +31,14 @@ const CLIENT_PATH = path.join(__dirname, 'state', 'gmail-oauth-client.json');
 const TOKEN_PATH = path.join(__dirname, 'state', 'gmail-oauth-token.json');
 const REDIRECT_PORT = 53682;
 const REDIRECT_URI = `http://127.0.0.1:${REDIRECT_PORT}/oauth/callback`;
-const SCOPES = ['https://www.googleapis.com/auth/gmail.send'];
+// gmail.send  → daily-digest sending (existing).
+// gmail.readonly → FRAKA reads the eqis@etrav.in inbox to spot tech-team replies
+//                  asking for a run's details (Engine 9 email-reply, Leg 1).
+// One re-auth grants BOTH; the existing send pipeline keeps working unchanged.
+const SCOPES = [
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.readonly',
+];
 
 function loadClient() {
   if (!fs.existsSync(CLIENT_PATH)) {
@@ -89,7 +96,7 @@ p{color:#cbd5e1;line-height:1.5}
 <h1>✓ Gmail authorized</h1>
 <p>EQIS can now send the daily digests from this Gmail account.<br>
 You can close this tab and return to the terminal.</p>
-<div class="detail">Scope granted: gmail.send (send-only, lowest privilege)</div>
+<div class="detail">Scopes granted: gmail.send + gmail.readonly (send digests + read inbox replies)</div>
 </div></body></html>`);
         server.close();
         resolve(q.code);

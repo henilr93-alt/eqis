@@ -3815,6 +3815,21 @@ eqis/
         <div id="tech-proposals-list" style="max-height:500px;overflow-y:auto;"></div>
       </div>
 
+      <!-- Tech Email Requests — FRAKA replies to "send me details for <ID>" -->
+      <div class="card" style="margin-top:16px;">
+        <div class="card-header">
+          <div class="card-title" style="color:var(--purple);">📧 Tech Email Requests — Reply with Run Details</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div id="tech-email-mode" style="font-size:11px;color:var(--text-dim);">—</div>
+            <button onclick="pollEmailRequests()" style="padding:5px 10px;border-radius:4px;background:var(--purple);color:white;font-size:11px;font-weight:600;cursor:pointer;border:none;">🔄 Poll now</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px;">
+          When the tech team replies to a bug ticket asking for a run's details, FRAKA reads the eqis@etrav.in inbox, gathers the search/review data + screenshots + video for that ID, and prepares a reply. Drafts wait for your approval before sending.
+        </div>
+        <div id="tech-email-list"></div>
+      </div>
+
       <!-- Development Backlog — tech team approval controls -->
       <div class="card" style="margin-top:16px;">
         <div class="card-header">
@@ -8755,6 +8770,9 @@ async function loadTechTab() {
     // Development backlog with approval controls
     loadTechDevelopments();
 
+    // Tech email requests (FRAKA reply-with-details)
+    loadEmailRequests();
+
     // Feedback list
     const feedback = fbData.feedback || [];
     const fbListEl = document.getElementById('tech-feedback-list');
@@ -8772,6 +8790,91 @@ async function loadTechTab() {
   } catch (err) {
     console.error('Tech tab error:', err);
   }
+}
+
+// ── Tech Email Requests (FRAKA reply-with-details, Engine 9 Leg 1) ──
+async function loadEmailRequests() {
+  const listEl = document.getElementById('tech-email-list');
+  const modeEl = document.getElementById('tech-email-mode');
+  if (!listEl) return;
+  try {
+    const res = await fetchWithAuth('/api/fraka/email-requests');
+    const data = await res.json();
+    if (modeEl) {
+      modeEl.textContent = !data.enabled
+        ? 'OFF — set FRAKA_EMAIL_REPLY_ENABLED=true'
+        : (data.autoSend ? 'LIVE · auto-send ON' : 'LIVE · draft-only (you approve)');
+    }
+    const reqs = data.requests || [];
+    if (reqs.length === 0) {
+      listEl.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:24px;font-size:13px;">No email requests yet. When the tech team replies asking for a run\'s details, click "Poll now".</div>';
+      return;
+    }
+    listEl.innerHTML = reqs.map(emailRequestCardHtml).join('');
+  } catch (err) {
+    listEl.innerHTML = '<div style="color:var(--text-dim);padding:16px;font-size:12px;">Could not load email requests.</div>';
+  }
+}
+
+function emailRequestCardHtml(r) {
+  const tone = r.status === 'sent' ? '#15803D' : r.status === 'drafted' ? 'var(--purple)'
+    : r.status === 'skipped' ? '#6e6e73' : r.status === 'failed' ? '#B91C1C' : '#C2410C';
+  const from = escapeHtmlText(r.from || '');
+  const draft = r.draft || {};
+  const attachments = (draft.attachments || []);
+  const attachLine = attachments.length
+    ? attachments.map(a => escapeHtmlText(a.filename) + ' (' + Math.round((a.bytes || 0) / 1024) + ' KB)').join(', ')
+    : 'none';
+  const actions = r.status === 'drafted'
+    ? '<div style="display:flex;gap:8px;margin-top:10px;">'
+      + '<button onclick="sendEmailRequest(\'' + r.id + '\')" style="padding:6px 14px;border-radius:4px;background:#15803D;color:white;font-size:12px;font-weight:600;cursor:pointer;border:none;">✅ Approve &amp; Send</button>'
+      + '<button onclick="skipEmailRequest(\'' + r.id + '\')" style="padding:6px 14px;border-radius:4px;background:#6e6e73;color:white;font-size:12px;font-weight:600;cursor:pointer;border:none;">Skip</button>'
+      + '</div>'
+    : '';
+  const previewBody = draft.bodyHtml
+    ? '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:12px;color:var(--purple);">Preview reply</summary>'
+      + '<div style="border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:6px;max-height:320px;overflow:auto;background:#fff;">' + draft.bodyHtml + '</div></details>'
+    : '';
+  const skipNote = r.skipReason ? '<div style="font-size:11px;color:#6e6e73;margin-top:4px;">Reason: ' + escapeHtmlText(r.skipReason) + '</div>' : '';
+  const errNote = r.error ? '<div style="font-size:11px;color:#B91C1C;margin-top:4px;">Error: ' + escapeHtmlText(r.error) + '</div>' : '';
+  return '<div class="card" style="margin-bottom:10px;border-left:3px solid ' + tone + ';">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+    + '<div style="font-size:13px;font-weight:600;color:var(--text);">' + escapeHtmlText(r.detectedId || '(no ID)') + '</div>'
+    + '<div style="font-size:11px;font-weight:700;color:' + tone + ';text-transform:uppercase;">' + escapeHtmlText(r.status) + '</div>'
+    + '</div>'
+    + '<div style="font-size:11px;color:var(--text-dim);margin-top:3px;">From: ' + from + ' · ' + escapeHtmlText(r.subject || '') + '</div>'
+    + '<div style="font-size:11px;color:var(--text-dim);margin-top:3px;">Attachments: ' + attachLine + '</div>'
+    + skipNote + errNote + previewBody + actions
+    + '</div>';
+}
+
+async function pollEmailRequests() {
+  const modeEl = document.getElementById('tech-email-mode');
+  if (modeEl) modeEl.textContent = 'Polling inbox…';
+  try {
+    const res = await fetch('/api/fraka/email-requests/poll?token=' + encodeURIComponent(authToken), { method: 'POST' });
+    await res.json();
+  } catch (err) { /* ignore */ }
+  loadEmailRequests();
+}
+
+async function sendEmailRequest(id) {
+  try {
+    const res = await fetch('/api/fraka/email-requests/' + encodeURIComponent(id) + '/send?token=' + encodeURIComponent(authToken), { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) alert('Send failed: ' + (data.error || 'unknown error'));
+  } catch (err) { alert('Send failed: ' + err.message); }
+  loadEmailRequests();
+}
+
+async function skipEmailRequest(id) {
+  try {
+    await fetch('/api/fraka/email-requests/' + encodeURIComponent(id) + '/skip?token=' + encodeURIComponent(authToken), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Skipped by operator' }),
+    });
+  } catch (err) { /* ignore */ }
+  loadEmailRequests();
 }
 
 async function submitTechFeedback() {

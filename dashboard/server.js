@@ -24,6 +24,7 @@ const {
   frakaCoderBuildApi, frakaCoderHistoryApi, frakaCoderBuildDetailApi,
   frakaDirectivesListApi, frakaDirectivesAddApi, frakaDirectivesUpdateApi, frakaDirectivesDeleteApi,
   frakaPerformanceApi,
+  frakaEmailRequestsApi, frakaEmailPollApi, frakaEmailSendApi, frakaEmailSkipApi,
 } = require('./api/frakaApi');
 
 function startDashboard() {
@@ -162,6 +163,11 @@ function startDashboard() {
   app.patch('/api/fraka/directives/:id', frakaDirectivesUpdateApi);
   app.delete('/api/fraka/directives/:id', frakaDirectivesDeleteApi);
   app.get('/api/fraka/performance', frakaPerformanceApi);
+  // FRAKA email reply (Engine 9 Leg 1) — read tech-team inbox replies, draft + send run details
+  app.get('/api/fraka/email-requests', frakaEmailRequestsApi);
+  app.post('/api/fraka/email-requests/poll', frakaEmailPollApi);
+  app.post('/api/fraka/email-requests/:id/send', frakaEmailSendApi);
+  app.post('/api/fraka/email-requests/:id/skip', frakaEmailSkipApi);
 
   // ECD comparison engine (engine5-ecd + engine6-mirror + ecd-comparator)
   const {

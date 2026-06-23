@@ -98,6 +98,16 @@ module.exports = {
   // Engine 9 (Flight INTL Audit) CMT escalation — gated OFF until verified live
   FLIGHT_INTL_AUDIT_ESCALATION_ENABLED: process.env.FLIGHT_INTL_AUDIT_ESCALATION_ENABLED || 'false',
 
+  // FRAKA Email Reply (Leg 1) — when the Etrav tech team replies to an EQIS bug
+  // ticket asking for a run's details, FRAKA reads the eqis@etrav.in inbox, gathers
+  // the search/review data + screenshots + video for that ID, and prepares a reply.
+  // FRAKA_EMAIL_REPLY_ENABLED  master switch (default OFF — needs gmail.readonly re-auth first).
+  // FRAKA_EMAIL_AUTO_SEND      'true' (default) = FRAKA sends the reply automatically — no human
+  //                            approval needed (CEO 2026-06-23: this is just info passing to the
+  //                            tech team). Set 'false' only if you want draft-only review again.
+  FRAKA_EMAIL_REPLY_ENABLED: process.env.FRAKA_EMAIL_REPLY_ENABLED || 'false',
+  FRAKA_EMAIL_AUTO_SEND: process.env.FRAKA_EMAIL_AUTO_SEND || 'true',
+
   // Engine 9 (Flight INTL Audit) FRAKA video-vs-data verify — gated OFF until verified live.
   // After each booked run, FRAKA compares the recording/screenshots against the recorded
   // data and files a CEO-queue proposal (human-approved) if an EQIS flow break is proven.
