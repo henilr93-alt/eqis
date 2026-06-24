@@ -1753,6 +1753,35 @@
         <span class="sep">to</span>
         <input type="date" id="fiaDateTo" onchange="loadFlightIntlAuditHistory()">
         <button class="rv-clear" onclick="document.getElementById('fiaDateFrom').value=''; document.getElementById('fiaDateTo').value=''; loadFlightIntlAuditHistory();">Clear</button>
+        <span style="width:18px;"></span>
+        <span class="lbl">Trip</span>
+        <select id="fiaTripFilter" onchange="fiaFilterById()" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:#fff;">
+          <option value="">All trips</option>
+          <option value="one-way">One-way</option>
+          <option value="round-trip">Round-trip</option>
+          <option value="round-trip-rt">Round-trip (RT)</option>
+        </select>
+        <span class="lbl">Cabin</span>
+        <select id="fiaCabinFilter" onchange="fiaFilterById()" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:#fff;">
+          <option value="">All cabins</option>
+          <option value="Economy">Economy</option>
+          <option value="Premium Economy">Premium Economy</option>
+          <option value="Business">Business</option>
+        </select>
+        <span class="lbl">Search result</span>
+        <select id="fiaSearchFilter" onchange="fiaFilterById()" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:#fff;">
+          <option value="">All searches</option>
+          <option value="__fail__">Failed only</option>
+        </select>
+        <span class="lbl">Review verdict</span>
+        <select id="fiaVerdictFilter" onchange="fiaFilterById()" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:#fff;">
+          <option value="">All verdicts</option>
+          <option value="__fail__">Failed only</option>
+        </select>
+        <span style="width:18px;"></span>
+        <span class="lbl">Search ID</span>
+        <input type="text" id="fiaSearchId" placeholder="e.g. FIA-MQJJU8JY-1F56" oninput="fiaFilterById()" style="min-width:220px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;">
+        <button class="rv-clear" onclick="document.getElementById('fiaSearchId').value=''; fiaFilterById();">Clear ID</button>
         <span style="flex:1;"></span>
         <button class="rv-quick" data-days="0"  onclick="fiaQuickDate(0)">Today</button>
         <button class="rv-quick" data-days="1"  onclick="fiaQuickDate(1)">Yesterday</button>
@@ -1792,6 +1821,39 @@
             </tr></thead>
             <tbody></tbody>
           </table>
+        </div>
+      </div>
+
+      <div class="rv-bottom" style="margin-top:14px;">
+        <div class="rv-card">
+          <h3>Performance by hour of day</h3>
+          <div style="color:var(--text-dim);font-size:11px;margin:-4px 0 12px;line-height:1.5;">
+            Each line shows how healthy the runs were in each hour of the day, across the dates picked above.
+            Higher line = better. A dip shows an hour when searches were failing or reviews were breaking.
+            <b style="color:#16a34a;">Green = Search</b> &middot; <b style="color:#2563eb;">Blue = Review</b>.
+          </div>
+          <div class="rv-filter" style="margin-bottom:12px;">
+            <span class="lbl">Trip</span>
+            <select id="fiaChartTrip" onchange="_fiaRenderHourChart()" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:#fff;">
+              <option value="">All trips</option>
+              <option value="one-way">One-way</option>
+              <option value="round-trip">Round-trip</option>
+              <option value="round-trip-rt">Round-trip (RT)</option>
+            </select>
+            <span class="lbl">Cabin</span>
+            <select id="fiaChartCabin" onchange="_fiaRenderHourChart()" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:#fff;">
+              <option value="">All cabins</option>
+              <option value="Economy">Economy</option>
+              <option value="Premium Economy">Premium Economy</option>
+              <option value="Business">Business</option>
+            </select>
+            <span class="lbl">Review verdict</span>
+            <select id="fiaChartVerdict" onchange="_fiaRenderHourChart()" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:#fff;">
+              <option value="">All verdicts</option>
+              <option value="__fail__">Failed only</option>
+            </select>
+          </div>
+          <div class="chart-wrap tall"><canvas id="chartFiaHourly"></canvas></div>
         </div>
       </div>
     </div>
@@ -8049,6 +8111,135 @@ function proposalCardHtml(p, audience) {
   `;
 }
 
+// ── CEO-friendly proposal card ────────────────────────────
+// The CEO is not a developer, so each proposal is shown in plain English with a
+// simple "what's happening / what FRAKA wants to do / what it costs" layout.
+// The raw technical details stay tucked inside a collapsible section.
+function _prettyEngineName(key) {
+  const map = {
+    'searchPulse.flightDom': 'Flight Search (India)',
+    'searchPulse.flightIntl': 'Flight Search (International)',
+    'searchPulse.hotelDom': 'Hotel Search (India)',
+    'searchPulse.hotelIntl': 'Hotel Search (International)',
+    'searchPulse': 'Flight & Hotel Search',
+    'ecd': 'Price Comparison',
+    'flightIntlAudit': 'Flight International Audit',
+    'journey': 'Journey Test',
+    'fullBooking': 'Full Booking Test',
+  };
+  return map[key] || key || 'a test';
+}
+function _friendlyFileName(f) {
+  if (!f) return '';
+  return String(f).split('/').pop();
+}
+// Translate a proposal into {icon, title, change} in plain English.
+function _proposalPlainEnglish(p) {
+  const d = p.details || {};
+  const t = p.type || '';
+  switch (t) {
+    case 'interval_change': {
+      const parts = [];
+      if (d.searchPulseMinutes) parts.push('run the Flight &amp; Hotel search test every ' + d.searchPulseMinutes + ' minutes');
+      if (d.journeyMinutes) parts.push('run the Journey test every ' + d.journeyMinutes + ' minutes');
+      if (d.fullBookingMinutes) parts.push('run the Full Booking test every ' + d.fullBookingMinutes + ' minutes');
+      return { icon: '\u23F1\uFE0F', title: 'Change how often a test runs',
+        change: parts.length ? ('FRAKA wants to ' + parts.join(', and ') + '.') : 'Adjust a test schedule.' };
+    }
+    case 'engine_toggle':
+      return { icon: d.enabled ? '\u25B6\uFE0F' : '\u23F8\uFE0F',
+        title: d.enabled ? 'Turn a test engine ON' : 'Turn a test engine OFF',
+        change: (d.enabled ? 'Start' : 'Stop') + ' the &ldquo;' + escapeHtmlText(_prettyEngineName(d.engine)) + '&rdquo; test engine.' };
+    case 'pause_all':
+      return { icon: '\u23F8\uFE0F', title: 'Pause ALL testing',
+        change: 'Stop every test engine right now. Nothing will run until you resume it.' };
+    case 'resume_all':
+      return { icon: '\u25B6\uFE0F', title: 'Resume ALL testing',
+        change: 'Start all the test engines running again.' };
+    case 'spend_approval':
+      return { icon: '\uD83D\uDCB0', title: 'Approve a higher spending limit',
+        change: 'Allow EQIS to spend up to <b>$' + escapeHtmlText(String(d.capUsd != null ? d.capUsd : '?')) + '</b> for the next ' + escapeHtmlText(String(d.hours || 24)) + ' hours.' };
+    case 'code_suggestion':
+      return { icon: '\uD83D\uDCA1', title: 'A software idea (nothing changes yet)',
+        change: d.summary ? escapeHtmlText(d.summary) : 'FRAKA is noting an idea for the tech team to look at later.' };
+    case 'code_change': {
+      const op = (d.operation || 'update').toLowerCase();
+      const opWord = op === 'create' ? 'add a new piece of software' : op === 'delete' ? 'remove a piece of software' : 'fix / update the software';
+      const file = _friendlyFileName(d.filePath || d.file);
+      let change = 'FRAKA wants to ' + opWord + (file ? ' (the &ldquo;' + escapeHtmlText(file) + '&rdquo; part)' : '') + '.';
+      if (d.summary) change += '<div style="margin-top:6px;color:var(--text);"><b>What it does:</b> ' + escapeHtmlText(d.summary) + '</div>';
+      return { icon: '\uD83D\uDEE0\uFE0F', title: 'Fix or change the software', change };
+    }
+    case 'scenario_edit': {
+      const file = _friendlyFileName(d.file || d.filePath);
+      return { icon: '\uD83D\uDCDD', title: 'Update a test scenario',
+        change: 'Change how one of the tests is set up' + (file ? ' (the &ldquo;' + escapeHtmlText(file) + '&rdquo; scenario)' : '') + '.' };
+    }
+    default:
+      return { icon: '\uD83D\uDCE6', title: escapeHtmlText(t.replace(/_/g, ' ')) || 'Proposal',
+        change: escapeHtmlText(p.description || 'FRAKA is proposing a change.') };
+  }
+}
+function ceoProposalCardHtml(p) {
+  const pe = _proposalPlainEnglish(p);
+  // Cost impact badge
+  const cost = Number(p.estimatedCostImpactUsd || 0);
+  let costBadge;
+  if (cost > 0) {
+    costBadge = '<span style="background:rgba(234,88,12,0.12);color:var(--orange);padding:4px 10px;border-radius:14px;font-size:11px;font-weight:600;">\uD83D\uDCB8 About $' + cost.toFixed(2) + ' more per day</span>';
+  } else if (cost < 0) {
+    costBadge = '<span style="background:rgba(34,197,94,0.12);color:var(--green);padding:4px 10px;border-radius:14px;font-size:11px;font-weight:600;">\uD83D\uDC9A Saves about $' + Math.abs(cost).toFixed(2) + ' per day</span>';
+  } else {
+    costBadge = '<span style="background:rgba(34,197,94,0.12);color:var(--green);padding:4px 10px;border-radius:14px;font-size:11px;font-weight:600;">\u2713 No extra cost</span>';
+  }
+  // Timeline
+  const createdAt = p.createdAt ? new Date(p.createdAt) : null;
+  const timeStr = createdAt ? createdAt.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const agoHours = createdAt ? Math.floor((Date.now() - createdAt.getTime()) / 3600000) : 0;
+  const agoStr = agoHours < 1 ? 'just now' : agoHours < 24 ? agoHours + 'h ago' : Math.floor(agoHours / 24) + 'd ago';
+  const isStale = agoHours > 12;
+  // "What's happening" — FRAKA's reason, falls back to its description
+  const happening = escapeHtmlText(p.reasoning || p.description || 'FRAKA spotted something it wants to act on.');
+  // Raw technical details (kept, but hidden behind a toggle)
+  const rawDetails = p.details && Object.keys(p.details).length
+    ? '<pre style="margin:8px 0 0;font-size:10px;color:var(--text-dim);white-space:pre-wrap;">' + escapeHtmlText(JSON.stringify(p.details, null, 2)) + '</pre>'
+    : '';
+  return `
+    <div style="border:1px solid ${isStale ? 'var(--orange)' : 'var(--border)'};border-radius:10px;padding:16px;margin-bottom:14px;background:${isStale ? 'rgba(234,88,12,0.04)' : 'var(--surface)'};">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px;">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div style="font-size:30px;line-height:1;">${pe.icon}</div>
+          <div>
+            <div style="font-size:16px;font-weight:800;color:var(--text);">${pe.title}</div>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${timeStr} &middot; ${agoStr}</div>
+          </div>
+        </div>
+        ${isStale ? '<span style="background:var(--orange);color:white;padding:2px 8px;border-radius:3px;font-size:9px;font-weight:700;white-space:nowrap;">WAITING ' + agoStr.toUpperCase() + '</span>' : ''}
+      </div>
+
+      <div style="background:rgba(59,130,246,0.06);border-left:3px solid var(--accent);border-radius:6px;padding:10px 12px;margin-bottom:10px;">
+        <div style="font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">\uD83D\uDCCB What's happening</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.5;">${happening}</div>
+      </div>
+
+      <div style="background:rgba(34,197,94,0.06);border-left:3px solid var(--green);border-radius:6px;padding:10px 12px;margin-bottom:12px;">
+        <div style="font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">\uD83D\uDD27 What FRAKA wants to do</div>
+        <div style="font-size:13px;color:var(--text);line-height:1.5;">${pe.change}</div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+        ${costBadge}
+        <div style="display:flex;gap:8px;">
+          <button onclick="approveProposal('${p.id}', 'ceo')" style="padding:8px 20px;border-radius:6px;background:var(--green);color:white;font-size:13px;font-weight:700;cursor:pointer;border:none;">\u2713 Approve</button>
+          <button onclick="rejectProposal('${p.id}', 'ceo')" style="padding:8px 20px;border-radius:6px;background:var(--red);color:white;font-size:13px;font-weight:700;cursor:pointer;border:none;">\u2717 Reject</button>
+        </div>
+      </div>
+
+      ${rawDetails ? '<details style="margin-top:10px;"><summary style="cursor:pointer;font-size:10px;color:var(--text-muted);">Show technical details (' + escapeHtmlText(p.id) + ')</summary>' + rawDetails + '</details>' : '<div style="margin-top:8px;font-size:9px;color:var(--text-muted);">' + escapeHtmlText(p.id) + '</div>'}
+    </div>
+  `;
+}
+
 function exportRatingDistributionHTML() {
   var data = window._spPerfDataFiltered || window._spPerfData;
   if (!data) { alert('No data available. Load the Performance tab first.'); return; }
@@ -8223,7 +8414,7 @@ async function loadCeoTab() {
     if (dedupedProposals.length === 0) {
       listEl.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:30px;font-size:13px;">No pending proposals. FRAKA will surface action items here.</div>';
     } else {
-      listEl.innerHTML = '<div style="font-size:10px;color:var(--text-dim);margin-bottom:8px;">' + dedupedProposals.length + ' unique proposals' + (ceoProposals.length > dedupedProposals.length ? ' (' + (ceoProposals.length - dedupedProposals.length) + ' duplicates hidden)' : '') + '</div>' + dedupedProposals.map(p => proposalCardHtml(p, 'ceo')).join('');
+      listEl.innerHTML = '<div style="font-size:10px;color:var(--text-dim);margin-bottom:8px;">' + dedupedProposals.length + ' unique proposals' + (ceoProposals.length > dedupedProposals.length ? ' (' + (ceoProposals.length - dedupedProposals.length) + ' duplicates hidden)' : '') + '</div>' + dedupedProposals.map(p => ceoProposalCardHtml(p)).join('');
     }
 
     // Chat history — only render if the CEO panel is open
@@ -9103,6 +9294,63 @@ setInterval(pollFrakaStatus, 10000);
       b.classList.toggle('active', daysBack != null && String(daysBack) === b.getAttribute('data-days'));
     });
   }
+  // Summarise a set of FIA rows client-side, mirroring the backend _summarise()
+  // bucketing in dashboard/api/flightIntlAuditApi.js. Used so the summary KPI
+  // cards reflect the CURRENTLY-FILTERED rows (date range + trip + cabin + ID),
+  // not just today.
+  function _fiaSummariseRows(rows) {
+    rows = rows || [];
+    var total = rows.length;
+    var searchSuccess = 0, reviewOk = 0, reviewScored = 0, etravIssues = 0, eqisIssues = 0;
+    var loadSum = 0, loadCount = 0, pool = [];
+    rows.forEach(function(r) {
+      var s = (r.search && r.search.status) || r.searchStatus || "UNKNOWN";
+      if (s === "SUCCESS") searchSuccess++;
+      var v = r.verdict || "UNKNOWN";
+      if (v !== "SKIPPED") {
+        reviewScored++;
+        var b = _reviewVerdictBucket(v);
+        if (v === "REVIEW_OK") reviewOk++;
+        else if (b === "bad") etravIssues++;
+        else if (b === "warn") eqisIssues++;
+      }
+      var m = (r.review && r.review.metrics) ? r.review.metrics : r.metrics;
+      var ms = m && typeof m.loadMs === "number" ? m.loadMs : null;
+      if (ms != null) { loadSum += ms; loadCount++; pool.push(ms); }
+    });
+    pool.sort(function(a, b) { return a - b; });
+    var p95 = pool.length ? pool[Math.max(0, Math.floor(0.95 * (pool.length - 1)))] : 0;
+    return {
+      total: total,
+      searchSuccess: searchSuccess,
+      searchSuccessRate: total ? (searchSuccess / total) * 100 : 0,
+      ok: reviewOk,
+      reviewScored: reviewScored,
+      successRate: reviewScored ? (reviewOk / reviewScored) * 100 : 0,
+      etravIssues: etravIssues,
+      eqisIssues: eqisIssues,
+      avgReviewLoadMs: loadCount ? Math.round(loadSum / loadCount) : 0,
+      p95ReviewLoadMs: p95
+    };
+  }
+  // Render the 6 summary KPI cards from a summary object (shared by the initial
+  // status fetch and the per-filter recompute).
+  function _fiaRenderSummary(sum) {
+    var row = document.getElementById("fia-summary-row");
+    if (!row) return;
+    sum = sum || { total: 0, ok: 0, successRate: 0, searchSuccess: 0, searchSuccessRate: 0, avgReviewLoadMs: 0, p95ReviewLoadMs: 0, etravIssues: 0, eqisIssues: 0, reviewScored: 0 };
+    var searchTone = sum.total === 0 ? "" : (sum.searchSuccessRate >= 90 ? "ok" : sum.searchSuccessRate >= 70 ? "warn" : "bad");
+    var revTone = sum.reviewScored === 0 ? "" : (sum.successRate >= 90 ? "ok" : sum.successRate >= 70 ? "warn" : "bad");
+    var loadTone = sum.avgReviewLoadMs > 20000 ? "warn" : sum.avgReviewLoadMs > 0 ? "ok" : "";
+    row.innerHTML = [
+      _reviewKpi("Runs", sum.total, "", "search + book + review"),
+      _reviewKpi("Search OK", sum.total === 0 ? "&mdash;" : (sum.searchSuccessRate || 0).toFixed(0) + "%", searchTone, sum.searchSuccess + " of " + sum.total + " loaded"),
+      _reviewKpi("Review OK", sum.reviewScored === 0 ? "&mdash;" : (sum.successRate || 0).toFixed(0) + "%", revTone, sum.ok + " of " + sum.reviewScored + " scored"),
+      _reviewKpi("Etrav issues", sum.etravIssues, sum.etravIssues ? "bad" : "ok", sum.etravIssues ? "needs product attention" : "no Etrav-side errors"),
+      _reviewKpi("EQIS issues", sum.eqisIssues, sum.eqisIssues ? "warn" : "ok", sum.eqisIssues ? "engine to investigate" : "engine healthy"),
+      _reviewKpi("Avg review load", sum.total === 0 ? "&mdash;" : _reviewFmtMs(sum.avgReviewLoadMs), loadTone, "p95 " + _reviewFmtMs(sum.p95ReviewLoadMs || 0)),
+    ].join("");
+  }
   function loadFlightIntlAuditTab() {
     var t = document.getElementById("tab-flight-intl-audit");
     if (!t || !t.classList.contains("active")) return;
@@ -9113,19 +9361,9 @@ setInterval(pollFrakaStatus, 10000);
         pill.classList.add(s.enabled ? "on" : "off");
         pill.textContent = s.enabled ? "Engine enabled" : "Disabled (env kill-switch)";
       }
-      var sum = s.today || { total: 0, ok: 0, successRate: 0, searchSuccess: 0, searchSuccessRate: 0, avgReviewLoadMs: 0, p95ReviewLoadMs: 0, etravIssues: 0, eqisIssues: 0, reviewScored: 0 };
-      var row = document.getElementById("fia-summary-row");
-      var searchTone = sum.total === 0 ? "" : (sum.searchSuccessRate >= 90 ? "ok" : sum.searchSuccessRate >= 70 ? "warn" : "bad");
-      var revTone = sum.reviewScored === 0 ? "" : (sum.successRate >= 90 ? "ok" : sum.successRate >= 70 ? "warn" : "bad");
-      var loadTone = sum.avgReviewLoadMs > 20000 ? "warn" : sum.avgReviewLoadMs > 0 ? "ok" : "";
-      if (row) row.innerHTML = [
-        _reviewKpi("Runs today", sum.total, "", "search + book + review"),
-        _reviewKpi("Search OK", sum.total === 0 ? "&mdash;" : (sum.searchSuccessRate||0).toFixed(0) + "%", searchTone, sum.searchSuccess + " of " + sum.total + " loaded"),
-        _reviewKpi("Review OK", sum.reviewScored === 0 ? "&mdash;" : (sum.successRate||0).toFixed(0) + "%", revTone, sum.ok + " of " + sum.reviewScored + " scored"),
-        _reviewKpi("Etrav issues", sum.etravIssues, sum.etravIssues ? "bad" : "ok", sum.etravIssues ? "needs product attention" : "no Etrav-side errors"),
-        _reviewKpi("EQIS issues", sum.eqisIssues, sum.eqisIssues ? "warn" : "ok", sum.eqisIssues ? "engine to investigate" : "engine healthy"),
-        _reviewKpi("Avg review load", sum.total === 0 ? "&mdash;" : _reviewFmtMs(sum.avgReviewLoadMs), loadTone, "p95 " + _reviewFmtMs(sum.p95ReviewLoadMs || 0)),
-      ].join("");
+      // Initial paint = today's totals; loadFlightIntlAuditHistory() below will
+      // immediately recompute these cards from the currently-filtered rows.
+      _fiaRenderSummary(s.today);
     }).catch(function(){});
     fetch("/api/flight-intl-audit/history").then(function(r){ return r.json(); }).then(function(data) {
       var tbody = document.querySelector("#fia-rollup-table tbody");
@@ -9196,14 +9434,158 @@ setInterval(pollFrakaStatus, 10000);
       var rows = [];
       results.forEach(function(r) { (r.rows || []).forEach(function(x) { rows.push(x); }); });
       rows.sort(function(a, b) { return String(b.startedAt).localeCompare(String(a.startedAt)); });
+      _fiaLoadedRows = rows;
+      _fiaDaysLoaded = days.length;
+      _fiaPopulateFilterOptions(rows);
+      fiaFilterById();
+      _fiaRenderHourChart();
+    });
+  }
+
+  // Holds the rows currently loaded for the selected date range so the Search-ID
+  // box can filter them client-side without re-fetching.
+  var _fiaLoadedRows = [];
+  var _fiaDaysLoaded = 0;
+
+  function _fiaToken() {
+    var tk = "";
+    try { tk = new URLSearchParams(location.search).get("token") || ""; } catch (e) {}
+    if (!tk) { try { tk = (typeof authToken !== "undefined" && authToken) || (typeof DASH_TOKEN !== "undefined" ? DASH_TOKEN : ""); } catch (e) {} }
+    return tk;
+  }
+  var _fiaFindTimer = null;
+
+  // Fill the Search-result + Review-verdict dropdowns with the distinct values
+  // actually present in the loaded date range (each with a count), so the user
+  // only sees real options. Keeps the current pick if it still applies.
+  function _fiaRefillSelect(id, counts, allLabel, failLabel) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    var prev = sel.value;
+    var keys = Object.keys(counts).sort();
+    var html = '<option value="">' + allLabel + '</option>'
+             + '<option value="__fail__">' + failLabel + '</option>';
+    keys.forEach(function(k) {
+      html += '<option value="' + k + '">' + k + ' (' + counts[k] + ')</option>';
+    });
+    sel.innerHTML = html;
+    sel.value = (prev === "" || prev === "__fail__" || counts[prev]) ? prev : "";
+  }
+  function _fiaPopulateFilterOptions(rows) {
+    rows = rows || [];
+    var statuses = {}, verdicts = {};
+    rows.forEach(function(r) {
+      var st = (r.search && r.search.status) || r.searchStatus;
+      if (st) statuses[st] = (statuses[st] || 0) + 1;
+      var vv = r.verdict;
+      if (vv) verdicts[vv] = (verdicts[vv] || 0) + 1;
+    });
+    _fiaRefillSelect("fiaSearchFilter", statuses, "All searches", "Failed only");
+    _fiaRefillSelect("fiaVerdictFilter", verdicts, "All verdicts", "Failed only");
+    _fiaRefillSelect("fiaChartVerdict", verdicts, "All verdicts", "Failed only");
+  }
+
+  // Filter the run history by Search ID (runId substring, case-insensitive),
+  // trip type, and cabin class. All three filters combine (AND).
+  // Trip/cabin always work on the loaded date range. The Search ID, however,
+  // also searches across ALL dates: if the typed ID is not in the loaded range,
+  // we query the backend /find endpoint so the run is found no matter its date.
+  function fiaFilterById() {
+    var box  = document.getElementById("fiaSearchId");
+    var trip = document.getElementById("fiaTripFilter");
+    var cab  = document.getElementById("fiaCabinFilter");
+    var srch = document.getElementById("fiaSearchFilter");
+    var vrd  = document.getElementById("fiaVerdictFilter");
+    var q          = box && box.value ? box.value.trim() : "";
+    var tripVal    = trip ? trip.value : "";
+    var cabinVal   = cab ? cab.value : "";
+    var searchVal  = srch ? srch.value : "";
+    var verdictVal = vrd ? vrd.value : "";
+
+    function applyTripCabin(list) {
+      return list.filter(function(r) {
+        if (tripVal) {
+          // "round-trip-rt" = round-trip with the Round-Trip-Fare box ticked;
+          // "round-trip" (plain) = round-trip with the box NOT ticked.
+          if (tripVal === "round-trip-rt") {
+            if (r.tripType !== "round-trip" || r.roundTripFareChecked !== true) return false;
+          } else if (tripVal === "round-trip") {
+            if (r.tripType !== "round-trip" || r.roundTripFareChecked === true) return false;
+          } else if (r.tripType !== tripVal) {
+            return false;
+          }
+        }
+        if (cabinVal && (r.cabinClass || "Economy") !== cabinVal) return false;
+        // Search-result filter: "__fail__" = any non-SUCCESS search; otherwise an
+        // exact search status (FAILED, ZERO_RESULTS, AUTOSUGGEST_DOWN, etc).
+        if (searchVal) {
+          var st = (r.search && r.search.status) || r.searchStatus || "";
+          if (searchVal === "__fail__") { if (st === "SUCCESS") return false; }
+          else if (st !== searchVal) return false;
+        }
+        // Review-verdict filter: "__fail__" = any real failure verdict (Etrav-side
+        // or EQIS-side, i.e. not REVIEW_OK and not SKIPPED); otherwise an exact verdict.
+        if (verdictVal) {
+          var vv = r.verdict || "";
+          if (verdictVal === "__fail__") {
+            var b = _reviewVerdictBucket(vv);
+            if (b !== "bad" && b !== "warn") return false;
+          } else if (vv !== verdictVal) return false;
+        }
+        return true;
+      });
+    }
+
+    if (_fiaFindTimer) { clearTimeout(_fiaFindTimer); _fiaFindTimer = null; }
+
+    var inRange = applyTripCabin(_fiaLoadedRows.filter(function(r) {
+      return !q || String(r.runId || "").toLowerCase().indexOf(q.toLowerCase()) !== -1;
+    }));
+
+    // No ID typed, or already found in the loaded range -> render instantly.
+    if (!q || inRange.length > 0) { _fiaRenderHistoryRows(inRange, q); return; }
+
+    // Typed an ID not in the loaded range -> search across all dates (debounced).
+    _fiaRenderHistoryRows([], q, true);
+    _fiaFindTimer = setTimeout(function() {
+      fetch("/api/flight-intl-audit/find/" + encodeURIComponent(q) + "?token=" + encodeURIComponent(_fiaToken()))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var cur = document.getElementById("fiaSearchId");
+          if (cur && cur.value.trim() !== q) return; // box changed mid-flight
+          _fiaRenderHistoryRows(applyTripCabin((data && data.rows) || []), q);
+        })
+        .catch(function() { _fiaRenderHistoryRows([], q); });
+    }, 350);
+  }
+
+  function _fiaRenderHistoryRows(rows, q, searching) {
+      // Keep the 6 summary cards in sync with the rows actually on screen, so the
+      // KPIs follow the date range + trip + cabin + Search-ID filters. While a
+      // cross-date ID search is mid-flight we leave the cards as-is.
+      if (!searching) _fiaRenderSummary(_fiaSummariseRows(rows));
       var tbody = document.getElementById("fiaHistoryBody");
       var ct = document.getElementById("fiaHistoryCount");
-      if (ct) ct.innerHTML = rows.length + ' run' + (rows.length === 1 ? '' : 's') + ' &middot; ' + days.length + ' day' + (days.length === 1 ? '' : 's');
+      if (ct) ct.innerHTML = searching ? 'Searching all dates&hellip;'
+        : (rows.length + ' run' + (rows.length === 1 ? '' : 's')
+           + (q ? ' matching &ldquo;' + q + '&rdquo; (all dates)' : ' &middot; ' + _fiaDaysLoaded + ' day' + (_fiaDaysLoaded === 1 ? '' : 's')));
       if (!tbody) return;
-      if (rows.length === 0) { tbody.innerHTML = '<tr><td colspan="15" class="rv-empty">No Flight INTL Audit runs in this range.</td></tr>'; return; }
-      var tk = "";
-      try { tk = new URLSearchParams(location.search).get("token") || ""; } catch (e) {}
-      if (!tk) { try { tk = (typeof authToken !== "undefined" && authToken) || (typeof DASH_TOKEN !== "undefined" ? DASH_TOKEN : ""); } catch (e) {} }
+      var tk = _fiaToken();
+      if (searching) {
+        tbody.innerHTML = '<tr><td colspan="15" class="rv-empty">Searching all dates for &ldquo;' + q + '&rdquo;&hellip;</td></tr>';
+        return;
+      }
+      if (rows.length === 0) {
+        if (q) {
+          // Detail page is served by runId regardless of date range, so offer a
+          // direct open link in case it exists but couldn't be matched in a row.
+          tbody.innerHTML = '<tr><td colspan="15" class="rv-empty">No run matching &ldquo;' + q + '&rdquo; on any date. '
+            + '<a class="rv-action-btn" target="_blank" href="/api/flight-intl-audit/detail/' + encodeURIComponent(q) + '?token=' + encodeURIComponent(tk) + '">&#8599; Try opening this ID directly</a></td></tr>';
+        } else {
+          tbody.innerHTML = '<tr><td colspan="15" class="rv-empty">No Flight INTL Audit runs in this range.</td></tr>';
+        }
+        return;
+      }
       tbody.innerHTML = rows.map(function(r) {
         var sb = r.search || {}; var rv = r.review || {}; var x = r.target || rv.target || {};
         var m = rv.metrics || r.metrics || {};
@@ -9265,7 +9647,99 @@ setInterval(pollFrakaStatus, 10000);
           '<td style="text-align:right;">' + actionCell + "</td>" +
         "</tr>";
       }).join("");
+  }
+
+  // Friendly 12-hour label for an hour-of-day (0-23): 0 -> "12 AM", 13 -> "1 PM".
+  function _fiaHourLabel(h) {
+    if (h === 0) return "12 AM";
+    if (h < 12) return h + " AM";
+    if (h === 12) return "12 PM";
+    return (h - 12) + " PM";
+  }
+
+  // Two-line "performance by hour of day" chart under the FIA tab. For each hour
+  // (00-23) it plots, across ALL dates currently loaded: the Search OK % (of runs
+  // that hour) and the Review OK % (of scored reviews that hour). Driven off
+  // _fiaLoadedRows with its own Trip / Cabin / Review-verdict filters (independent
+  // of the run-history table filters). Hours with no runs show a gap, not a zero,
+  // so a real dip stands out.
+  function _fiaRenderHourChart() {
+    var canvas = document.getElementById("chartFiaHourly");
+    if (!canvas) return;
+    var tripV = (document.getElementById("fiaChartTrip")    || {}).value || "";
+    var cabV  = (document.getElementById("fiaChartCabin")   || {}).value || "";
+    var vrdV  = (document.getElementById("fiaChartVerdict") || {}).value || "";
+
+    var rows = (_fiaLoadedRows || []).filter(function(r) {
+      if (tripV) {
+        if (tripV === "round-trip-rt") {
+          if (r.tripType !== "round-trip" || r.roundTripFareChecked !== true) return false;
+        } else if (tripV === "round-trip") {
+          if (r.tripType !== "round-trip" || r.roundTripFareChecked === true) return false;
+        } else if (r.tripType !== tripV) {
+          return false;
+        }
+      }
+      if (cabV && (r.cabinClass || "Economy") !== cabV) return false;
+      if (vrdV) {
+        var vv = r.verdict || "";
+        if (vrdV === "__fail__") {
+          var b = _reviewVerdictBucket(vv);
+          if (b !== "bad" && b !== "warn") return false;
+        } else if (vv !== vrdV) return false;
+      }
+      return true;
     });
+
+    var sTot = [], sOk = [], rScored = [], rOk = [];
+    for (var i = 0; i < 24; i++) { sTot[i] = 0; sOk[i] = 0; rScored[i] = 0; rOk[i] = 0; }
+    rows.forEach(function(r) {
+      var d = r.startedAt ? new Date(r.startedAt) : null;
+      if (!d || isNaN(d)) return;
+      var h = d.getHours();
+      sTot[h]++;
+      var st = (r.search && r.search.status) || r.searchStatus || "";
+      if (st === "SUCCESS") sOk[h]++;
+      var v = r.verdict || "";
+      if (v && v !== "SKIPPED") { rScored[h]++; if (v === "REVIEW_OK") rOk[h]++; }
+    });
+
+    var labels = [], searchPct = [], reviewPct = [];
+    for (var h = 0; h < 24; h++) {
+      labels.push(_fiaHourLabel(h));
+      searchPct.push(sTot[h]    ? Math.round((sOk[h] / sTot[h]) * 100)    : null);
+      reviewPct.push(rScored[h] ? Math.round((rOk[h] / rScored[h]) * 100) : null);
+    }
+
+    var data = { labels: labels, datasets: [
+      { label: "Search OK %", data: searchPct, borderColor: "#16a34a",
+        backgroundColor: "rgba(22,163,74,.12)", tension: .3, spanGaps: false,
+        pointRadius: 3, pointHoverRadius: 5, borderWidth: 2, fill: false },
+      { label: "Review OK %", data: reviewPct, borderColor: "#2563eb",
+        backgroundColor: "rgba(37,99,235,.12)", tension: .3, spanGaps: false,
+        pointRadius: 3, pointHoverRadius: 5, borderWidth: 2, fill: false }
+    ]};
+
+    var options = {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: true, position: "top" },
+        tooltip: { callbacks: { label: function(ctx) {
+          var h = ctx.dataIndex;
+          if (ctx.parsed.y == null) return ctx.dataset.label + ": no runs";
+          if (ctx.datasetIndex === 0) return "Search: " + ctx.parsed.y + "% (" + sOk[h] + " of " + sTot[h] + ")";
+          return "Review: " + ctx.parsed.y + "% (" + rOk[h] + " of " + rScored[h] + ")";
+        } } }
+      },
+      scales: {
+        y: { min: 0, max: 100, ticks: { callback: function(v) { return v + "%"; } },
+             title: { display: true, text: "Healthy %" } },
+        x: { title: { display: true, text: "Hour of day" } }
+      }
+    };
+
+    renderChart("chartFiaHourly", "line", data, options);
   }
 
 </script>
