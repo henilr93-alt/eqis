@@ -451,8 +451,8 @@ function _reviewDetailTable(agg) {
 
 function render(agg, meta) {
   const windowLabel = _istClock(meta.startMs) + ' → ' + _istClock(meta.endMs) + ' IST';
-  const subject = 'EQIS · Flight INTL Audit — ' + agg.searchFail + ' search + ' + agg.reviewFail
-    + ' review failures (last ' + meta.windowHours + 'h)';
+  const subject = '[EQIS · Flight Audit · ' + meta.windowHours + 'h] '
+    + agg.searchFail + ' search + ' + agg.reviewFail + ' review fails \u2014 ' + windowLabel;
 
   // Airlines that failed on review
   let airlineTable;
@@ -689,8 +689,8 @@ function renderDaily(meta) {
   const blocks = timeline(meta.rows, meta.startMs);
   const dayLabel = _dayLabel(meta.dayIso);
 
-  const subject = 'EQIS · Flight INTL Audit — DAILY ' + meta.dayIso + ' — '
-    + agg.searchFail + ' search + ' + agg.reviewFail + ' review failures';
+  const subject = '[EQIS · Flight Audit · 24h] ' + dayLabel + ' \u2014 '
+    + agg.searchFail + ' search + ' + agg.reviewFail + ' review fails';
 
   const searchBars = _barImg('Search-page failures by reason', agg.topSearchReasons, searchLabel);
   const reviewBars = _barImg('Review-page failures by reason', agg.topReviewReasons, verdictLabel);

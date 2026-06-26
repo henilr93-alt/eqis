@@ -313,9 +313,10 @@ function renderTechDigest(input) {
   ].join('');
 
   return {
-    subject: 'EQIS \u00b7 SearchPulse daily report (yesterday) \u2014 '
-      + ((totals.totalEtravIssues || 0) > 0 ? (totals.totalEtravIssues || 0) + ' Etrav issue' + ((totals.totalEtravIssues || 0) === 1 ? '' : 's') : 'all healthy')
-      + ' \u00b7 ' + successRate.toFixed(0) + '% success on ' + totals.totalSearches + ' searches',
+    subject: '[EQIS \u00b7 SearchPulse] '
+      + successRate.toFixed(0) + '% success on ' + totals.totalSearches + ' searches \u00b7 '
+      + ((totals.totalEtravIssues || 0) > 0 ? (totals.totalEtravIssues || 0) + ' Etrav issue' + ((totals.totalEtravIssues || 0) === 1 ? '' : 's') : '0 Etrav issues')
+      + ' \u2014 yesterday',
     html: wrap({
       title: 'SearchPulse \u2014 daily performance digest',
       preheader: totals.totalSearches + ' searches \u00b7 ' + successRate.toFixed(1) + '% success \u00b7 ' + (totals.totalEtravIssues || 0) + ' Etrav issues',
@@ -498,7 +499,7 @@ function renderMarketingDigest(input) {
   const promote = picked;
 
   return {
-    subject: 'EQIS · Marketing — ' + promote.length + ' hotel' + (promote.length === 1 ? '' : 's') + ' to promote today',
+    subject: '[EQIS · Marketing] ' + promote.length + ' hotel' + (promote.length === 1 ? '' : 's') + ' to promote today',
     html: wrap({
       title: 'Hotels where Eagle Crest beats the market',
       preheader: promote.length + ' promotable hotel' + (promote.length === 1 ? '' : 's') + ' · ' + fmtINR(totalSavings) + ' total savings',
@@ -553,7 +554,7 @@ function renderContractingDigest(input) {
   ].join('');
 
   return {
-    subject: 'EQIS · Contracting — ' + reneg.length + ' hotel' + (reneg.length === 1 ? '' : 's') + ' to renegotiate today',
+    subject: '[EQIS · Contracting] ' + reneg.length + ' hotel' + (reneg.length === 1 ? '' : 's') + ' to renegotiate today',
     html: wrap({
       title: 'Hotels to renegotiate — market is beating our direct rate',
       preheader: reneg.length + ' renegotiation target' + (reneg.length === 1 ? '' : 's') + ' · ' + fmtINR(totalOverpay) + ' total gap',
@@ -565,9 +566,184 @@ function renderContractingDigest(input) {
   };
 }
 
+/* ────────────────────────────────────────────────────────────────────── *
+ *  TECH TEAM — Flight INTL Audit (Engine 9) "worst hour of the day" digest
+ *
+ *  Once per day after the 24h cycle closes, tells the tech team the single
+ *  worst hour for searches and the single worst hour for reviews on our
+ *  system, plus a full hour-by-hour breakdown. Failure counts mirror the
+ *  dashboard "Performance by hour of day" graph exactly.
+ * ────────────────────────────────────────────────────────────────────── */
+
+// "2 AM–3 AM" style label for an hour bucket (h .. h+1, midnight-wrapped).
+function _fiaHourRange(h) {
+  function lbl(x) {
+    if (x === 0) return '12 AM';
+    if (x < 12) return x + ' AM';
+    if (x === 12) return '12 PM';
+    return (x - 12) + ' PM';
+  }
+  return lbl(h) + '\u2013' + lbl((h + 1) % 24);
+}
+
+function _fiaPrettyDate(dateIso) {
+  if (!dateIso) return '';
+  try {
+    return new Date(dateIso + 'T12:00:00+05:30').toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata', weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+    });
+  } catch { return dateIso; }
+}
+
+// Whole-number percentage helper for "X of Y" style stats.
+function _fiaPct(part, whole) {
+  if (!whole) return 0;
+  return Math.round((part / whole) * 100);
+}
+
+// One big KPI tile for the top "at a glance" band. `tone` decides the colour:
+// 'neutral' (slate), 'good' (green) or 'bad' (red).
+function _fiaKpiTile(value, label, sub, tone) {
+  const palette = {
+    neutral: { bg: '#0f172a', fg: '#ffffff', subFg: '#94a3b8' },
+    good:    { bg: '#052e1a', fg: '#34d399', subFg: '#6ee7b7' },
+    bad:     { bg: '#3b0a0a', fg: '#f87171', subFg: '#fca5a5' },
+  };
+  const c = palette[tone] || palette.neutral;
+  return ''
+    + '<td width="33.33%" valign="top" style="padding:0 6px;">'
+    +   '<div style="background:' + c.bg + ';border-radius:10px;padding:18px 16px;text-align:center;">'
+    +     '<div style="font-size:34px;line-height:1;font-weight:800;color:' + c.fg + ';font-variant-numeric:tabular-nums;">' + value + '</div>'
+    +     '<div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:' + c.fg + ';margin-top:8px;">' + esc(label) + '</div>'
+    +     '<div style="font-size:11px;color:' + c.subFg + ';margin-top:3px;">' + esc(sub) + '</div>'
+    +   '</div>'
+    + '</td>';
+}
+
+// One "Searches" or "Reviews" stat block inside a trip-type card. Green when
+// there are zero failures, red when something failed. Shows the failed/total
+// split, the failure %, and the worst hour of the day (no hour-by-hour table).
+function _fiaStatBlock(heading, fails, total, worst) {
+  const clean = !fails;
+  const fg     = clean ? '#0a7f3f' : '#a40000';
+  const chipBg = clean ? '#e7f7ee' : '#fdeaea';
+  const pct = _fiaPct(fails, total);
+  const headLine = ''
+    + '<div style="font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#64748b;margin-bottom:6px;">' + esc(heading) + '</div>';
+  if (!total) {
+    return headLine
+      + '<div style="font-size:13px;color:#94a3b8;">No runs</div>';
+  }
+  const numbers = ''
+    + '<div style="font-size:22px;font-weight:800;color:' + fg + ';font-variant-numeric:tabular-nums;line-height:1;">'
+    +   fails + '<span style="font-size:13px;font-weight:600;color:#94a3b8;"> / ' + total + '</span>'
+    + '</div>'
+    + '<div style="display:inline-block;margin-top:6px;padding:2px 8px;border-radius:20px;background:' + chipBg + ';font-size:11px;font-weight:700;color:' + fg + ';">'
+    +   (clean ? '\u2713 all passed' : pct + '% failed')
+    + '</div>';
+  // Worst hour callout — highlighted so the tech team can immediately see WHICH
+  // hour was the weakest and HOW MANY searches/reviews were filled in that hour.
+  const noun = /review/i.test(heading) ? 'reviews' : 'searches';
+  const worstLine = (!clean && worst)
+    ? '<div style="margin-top:9px;padding:8px 10px;border-radius:8px;background:#fff7ed;border:1px solid #fed7aa;">'
+      +   '<div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#9a3412;">Worst hour</div>'
+      +   '<div style="font-size:14px;font-weight:800;color:#7c2d12;margin-top:2px;">' + _fiaHourRange(worst.hour) + '</div>'
+      +   '<div style="font-size:11px;color:#9a3412;margin-top:3px;">'
+      +     '<strong>' + worst.total + '</strong> ' + noun + ' filled \u00b7 '
+      +     '<strong>' + worst.fails + '</strong> failed'
+      +     ' (' + worst.failPct + '%)'
+      +   '</div>'
+      + '</div>'
+    : '';
+  return headLine + numbers + worstLine;
+}
+
+// One trip-type card (One-way / Round Trip / Round Trip RT): dark header bar
+// with the label + run count, then a Searches block and a Reviews block side by
+// side. Designed to sit in a 3-column row so all trip types read at a glance.
+function _fiaTripCard(group) {
+  const runs = group.totalRuns || 0;
+  const headerNote = runs ? (runs + ' run' + (runs === 1 ? '' : 's')) : 'no runs';
+  return ''
+    + '<td width="33.33%" valign="top" style="padding:0 6px;">'
+    +   '<div style="border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">'
+    +     '<div style="background:#0f172a;padding:11px 14px;">'
+    +       '<div style="font-size:13px;font-weight:800;color:#fff;letter-spacing:.02em;">' + esc(group.label) + '</div>'
+    +       '<div style="font-size:11px;color:#94a3b8;margin-top:2px;">' + headerNote + ' this day</div>'
+    +     '</div>'
+    +     '<div style="padding:14px;background:#fff;">'
+    +       _fiaStatBlock('Searches', group.totalSearchFail || 0, group.totalRuns || 0, group.worstSearchHour)
+    +       '<div style="height:1px;background:#eef0f3;margin:13px 0;"></div>'
+    +       _fiaStatBlock('Reviews', group.totalReviewFail || 0, group.totalReviewScored || 0, group.worstReviewHour)
+    +     '</div>'
+    +   '</div>'
+    + '</td>';
+}
+
+function renderFiaDigest(input) {
+  const dateLabel = _fiaPrettyDate(input.dateIso);
+  const groups = Array.isArray(input.tripGroups) ? input.tripGroups : [];
+
+  const totalRuns   = input.totalRuns || 0;
+  const searchFail  = input.totalSearchFail || 0;
+  const reviewFail  = input.totalReviewFail || 0;
+
+  // Top "at a glance" KPI band — whole-day totals across all three trip types.
+  const kpiBand = ''
+    + '<table width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 22px;border-collapse:separate;"><tr>'
+    +   _fiaKpiTile(totalRuns, 'Audit runs', 'across all trip types', 'neutral')
+    +   _fiaKpiTile(searchFail, 'Search failures', searchFail ? _fiaPct(searchFail, totalRuns) + '% of runs' : 'all searches OK', searchFail ? 'bad' : 'good')
+    +   _fiaKpiTile(reviewFail, 'Review failures', reviewFail ? 'reviews that did not pass' : 'all reviews OK', reviewFail ? 'bad' : 'good')
+    + '</tr></table>';
+
+  // Three trip-type cards in one row, so every search type reads at a glance.
+  const cards = groups.length
+    ? '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;"><tr>'
+        + groups.map(_fiaTripCard).join('')
+        + '</tr></table>'
+    : '<div style="padding:16px;text-align:center;color:#666;border:1px dashed #ddd;border-radius:6px;">No Flight INTL Audit runs recorded for this day.</div>';
+
+  const body = [
+    '<div style="font-size:13px;color:#444;line-height:1.6;margin-bottom:2px;">',
+    'Flight INTL Audit (Engine 9) summary for <strong>' + esc(dateLabel) + '</strong>, split across our three search types \u2014 ',
+    '<strong>One-way</strong>, <strong>Round Trip</strong> and <strong>Round Trip RT</strong>. ',
+    'Everything you need is below at a glance; failure counts match the dashboard exactly.',
+    '</div>',
+    kpiBand,
+    '<div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:.06em;text-transform:uppercase;margin:0 0 10px;">By trip type</div>',
+    cards,
+    '<div style="margin-top:20px;padding-top:14px;border-top:1px solid #eef0f3;font-size:12px;color:#64748b;line-height:1.6;">',
+    'A search \u201Cfail\u201D = the search did not complete successfully. A review \u201Cfail\u201D = the review ran but did not pass ',
+    '(skipped reviews are not counted). Green means everything passed.',
+    '</div>',
+  ].join('');
+
+  // Concise per-trip-type summary for the preheader / history line.
+  const sumParts = groups.length
+    ? groups.map(g => g.label + ' ' + (g.totalSearchFail || 0) + '/' + (g.totalReviewFail || 0) + ' fail')
+    : ['No runs recorded'];
+  const summaryLine = totalRuns
+    ? (totalRuns + ' runs \u00b7 ' + searchFail + ' search fails \u00b7 ' + reviewFail + ' review fails \u00b7 ' + sumParts.join(' \u00b7 '))
+    : 'No Flight INTL Audit runs recorded';
+
+  return {
+    subject: '[EQIS \u00b7 Flight Audit \u00b7 daily] ' + dateLabel + ' \u2014 '
+      + (totalRuns ? (searchFail + ' search + ' + reviewFail + ' review fails') : 'no runs'),
+    html: wrap({
+      title: 'Flight INTL Audit — daily summary',
+      preheader: summaryLine,
+      bodyHtml: body,
+      footerHtml: footer(input.runId),
+    }),
+    summaryLine: summaryLine,
+    recordCount: searchFail + reviewFail,
+  };
+}
+
 module.exports = {
   renderTechDigest,
   renderMarketingDigest,
   renderContractingDigest,
+  renderFiaDigest,
   _internals: { ecdHotelRowAction, esc, fmtINR, nights },
 };
